@@ -1,0 +1,25 @@
+resource "aws_s3_bucket" "lab" {
+  bucket = "02-iam-basics"
+}
+
+resource "aws_s3_bucket_policy" "https_only" {
+  bucket = aws_s3_bucket.lab.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid    = "RestrictToTLSRequestsOnly"
+      Action = "s3:*"
+      Effect = "Deny"
+      Resource = [
+        aws_s3_bucket.lab.arn,
+        "${aws_s3_bucket.lab.arn}/*"
+      ]
+      Condition = {
+        Bool = {
+          "aws:SecureTransport" = "false"
+        }
+      }
+      Principal = "*"
+    }]
+  })
+}
