@@ -1,34 +1,21 @@
 # 03 - Lambda S3
 
-This lab creates an event-driven S3 to Lambda flow with Terraform using Floci as a local AWS emulator.
+Event-driven S3 to Lambda lab for Floci.
 
-The Terraform code was written manually to make sure I understand how S3 events, Lambda functions, IAM roles, Lambda permissions, and S3 bucket notifications connect to each other.
+This is a learning-in-public lab. The Terraform models a real AWS event flow, but Floci can behave differently from AWS.
 
 ## Resources
 
 - S3 bucket: `03-lambda-s3`
-- HTTPS-only bucket policy for the S3 bucket
+- HTTPS-only bucket policy and explicit S3 public access block
 - IAM role: `lambda-role-03-lambda-s3`
 - Custom IAM policy: `s3-access-03-lambda-s3`
 - IAM policy attachment from the Lambda role to the S3 access policy
 - Lambda function: `s3-processor-03-lambda-s3`
 - Lambda deployment package created from `app/index.js`
-- Lambda permission allowing S3 to invoke the Lambda function
-- S3 bucket notification for object creation events under `input/`
-- Terraform outputs for the S3 bucket, Lambda function, Lambda role, and IAM policy
-
-## What I learned
-
-- How to package Lambda code with the `archive` provider
-- How to create a Lambda function with Terraform
-- How to create a Lambda execution role
-- How to use a trust policy with `lambda.amazonaws.com`
-- How to allow Lambda to read from S3 `input/*`
-- How to allow Lambda to write to S3 `output/*`
-- How `aws_lambda_permission` allows S3 to invoke a Lambda function
-- How `aws_s3_bucket_notification` connects S3 object-created events to Lambda
-- How to scope S3 event notifications by prefix
-- How to verify an end-to-end S3 to Lambda flow
+- Lambda permission allowing S3 to invoke the function
+- S3 bucket notification for object creation under `input/`
+- Terraform outputs for the main resources
 
 ## Event flow
 
@@ -49,22 +36,27 @@ S3 invoking Lambda:
 S3 bucket -> aws_lambda_permission -> Lambda function
 ```
 
-The Lambda permission allows the S3 service to invoke the Lambda function, but only from this specific bucket.
-
 Lambda accessing S3:
 
 ```text
 Lambda function -> Lambda execution role -> s3_access policy -> S3 input/output prefixes
 ```
 
-The Lambda role can:
+Allowed object access:
 
 ```text
 s3:GetObject on input/*
 s3:PutObject on output/*
 ```
 
-This means Lambda can read uploaded files from `input/` and write processed files to `output/`.
+## What I learned
+
+- How to package Lambda code with the `archive` provider
+- How to create a Lambda function and execution role with Terraform
+- How `aws_lambda_permission` controls who can invoke the function
+- How `aws_s3_bucket_notification` connects S3 events to Lambda
+- How to scope the flow to `input/` and `output/` prefixes
+- How to verify an end-to-end event-driven path locally
 
 ## Test
 
@@ -120,17 +112,11 @@ aws s3 rm s3://03-lambda-s3 --recursive
 ../../tools/tf.sh destroy
 ```
 
-## Notes
+## Floci note
 
-This lab uses Floci, not real AWS.
+This lab follows the real AWS pattern, but Floci behavior can differ from AWS.
 
-The design still follows the real AWS pattern:
-
-```text
-S3 event source -> Lambda function -> IAM execution role -> S3 read/write permissions
-```
-
-The important distinction is:
+Important distinction:
 
 ```text
 aws_lambda_permission controls who can invoke the Lambda function.

@@ -1,22 +1,20 @@
 # 06 - ALB EC2 Basics
 
-This lab creates a basic Application Load Balancer flow with Terraform using Floci as a local AWS emulator.
+Basic ALB to EC2 flow for Floci.
 
-The Terraform code was written manually to understand how a VPC, public subnets, security groups, an Application Load Balancer, a listener, a target group, a target group attachment, and an EC2 instance connect to each other.
+This is a learning-in-public lab. It is meant to show how the pieces connect, not to present a production-ready ALB design, and Floci behavior can differ from real AWS.
 
 ## Resources
 
 - VPC: `10.0.0.0/16`
 - Public subnet A: `10.0.1.0/24`
 - Public subnet B: `10.0.2.0/24`
-- Internet Gateway
-- Public route table with `0.0.0.0/0` routed to the Internet Gateway
+- Internet Gateway and public route table
 - Route table associations for both public subnets
 - ALB security group
 - EC2 security group
 - Application Load Balancer
-- Target group
-- Target group attachment
+- Target group and target group attachment
 - HTTP listener on port `80`
 - EC2 instance running a small Python HTTP server
 
@@ -30,87 +28,37 @@ Internet
   -> EC2 Instance
 ```
 
-The EC2 instance runs a simple HTTP server through `user_data`:
+The EC2 instance serves:
 
 ```text
 hello from 06-alb-ec2-basics
 ```
 
-## Security Groups
+## Security groups
 
-### ALB Security Group
-
-Allows inbound HTTP traffic from the internet:
+ALB security group:
 
 ```text
 0.0.0.0/0 -> TCP 80
 ```
 
-Allows all outbound traffic.
-
-### EC2 Security Group
-
-Allows inbound HTTP traffic only from the ALB security group:
+EC2 security group:
 
 ```text
 ALB security group -> TCP 80
 ```
 
-Allows all outbound traffic.
+The EC2 instance is placed in a public subnet but does not get a public IP. That works for this lab because traffic is meant to come through the ALB. In a more typical production design, backend instances would usually sit in private subnets behind the ALB.
 
-The EC2 instance does not get a public IP address. It is intended to be reached through the ALB, not directly from the internet.
+## Key concepts
 
-## Key Concepts
+- The ALB is the public entry point for HTTP traffic.
+- The listener defines which port and protocol the ALB accepts.
+- The target group defines where the ALB forwards requests.
+- The target group attachment registers the EC2 instance as a backend target.
+- The EC2 instance can stay off the public internet and still receive traffic through the ALB.
 
-### Application Load Balancer
-
-The ALB is the public entry point for HTTP traffic.
-
-```text
-Client -> ALB
-```
-
-### Listener
-
-The listener defines which port and protocol the ALB listens on.
-
-In this lab:
-
-```text
-HTTP :80
-```
-
-The listener forwards requests to the target group.
-
-### Target Group
-
-The target group represents the backend destination for the ALB.
-
-In this lab, the target type is:
-
-```text
-instance
-```
-
-That means EC2 instances are registered as targets.
-
-### Target Group Attachment
-
-The target group attachment registers the EC2 instance in the target group.
-
-```text
-Target Group -> EC2 Instance
-```
-
-Without this attachment, the ALB would have no backend target to forward traffic to.
-
-### EC2 User Data
-
-The EC2 instance uses `user_data` to start a small HTTP server on port `80`.
-
-This makes it possible to verify that the instance is serving traffic.
-
-## Terraform Flow
+## Terraform flow
 
 ```text
 VPC
@@ -125,39 +73,41 @@ VPC
   -> Listener
 ```
 
+## What I learned
+
+- Why a public ALB usually spans at least two subnets
+- How security groups can reference other security groups
+- How the listener, target group, and target attachment depend on each other
+- Why an instance can be reachable through an ALB without having its own public IP
+- Why local Floci validation of the resource graph is useful even when end-to-end reachability differs from AWS
+
 ## Commands
 
-From the repository root:
+Run from this project directory:
 
 ```sh
-./tools/tf.sh 06-alb-ec2-basics init
-./tools/tf.sh 06-alb-ec2-basics fmt
-./tools/tf.sh 06-alb-ec2-basics validate
-./tools/tf.sh 06-alb-ec2-basics plan
-./tools/tf.sh 06-alb-ec2-basics apply
+../../tools/tf.sh init
+../../tools/tf.sh fmt
+../../tools/tf.sh validate
+../../tools/tf.sh plan
+../../tools/tf.sh apply
 ```
 
 Destroy the lab:
 
 ```sh
-./tools/tf.sh 06-alb-ec2-basics destroy
+../../tools/tf.sh destroy
 ```
 
-## Useful AWS CLI Checks
-
-List load balancers:
+## Useful AWS CLI checks
 
 ```sh
 aws elbv2 describe-load-balancers --no-cli-pager
-```
-
-List target groups:
-
-```sh
 aws elbv2 describe-target-groups --no-cli-pager
+aws ec2 describe-instances --no-cli-pager
 ```
 
-List listeners:
+Check listeners:
 
 ```sh
 aws elbv2 describe-listeners \
@@ -173,15 +123,9 @@ aws elbv2 describe-target-health \
   --no-cli-pager
 ```
 
-Check EC2 instances:
+## Local Floci note
 
-```sh
-aws ec2 describe-instances --no-cli-pager
-```
-
-## Local Floci Notes
-
-Floci successfully creates the ALB, listener, target group, EC2 instance, and target group attachment for this lab.
+Floci creates the ALB resources and the EC2 backend for this lab.
 
 The EC2 web server responds inside the EC2 container:
 
@@ -195,36 +139,8 @@ Expected response:
 hello from 06-alb-ec2-basics
 ```
 
-However, the ALB DNS name is not reachable from the host on port `80` in this local setup.
+The ALB DNS name is usually not reachable from the host on port `80` in this local setup. `*.localhost.floci.io:4566` reaches the Floci edge/API endpoint, not the ALB listener.
 
-The `*.localhost.floci.io:4566` endpoint reaches the Floci edge/API gateway, not the ALB listener. Therefore, a request like this may fail locally:
+## Real AWS note
 
-```sh
-curl http://<alb-dns-name>
-```
-
-## What I Learned
-
-- An ALB is the public entry point for HTTP traffic.
-- A listener defines which port and protocol the ALB listens on.
-- A target group defines where the ALB forwards traffic.
-- A target group attachment registers an EC2 instance as a backend target.
-- The EC2 instance still needs to live in a subnet.
-- The ALB should be placed in at least two public subnets.
-- The EC2 instance can avoid a public IP and still receive traffic through the ALB.
-- Security groups can reference other security groups.
-- The ALB security group controls who can reach the ALB.
-- The EC2 security group controls who can reach the instance.
-- In real AWS, public ALB traffic should normally use HTTPS on port `443`.
-
-## Real AWS Note
-
-This lab uses HTTP on port `80` intentionally for local learning.
-
-In production, a public ALB should normally use HTTPS with an ACM certificate:
-
-```text
-Client -> HTTPS :443 -> ALB -> Target Group -> EC2
-```
-
-The ALB-to-EC2 connection may still use HTTP internally depending on the architecture and security requirements.
+This lab uses HTTP on port `80` intentionally for local learning. In real AWS, a public ALB would normally use HTTPS with an ACM certificate.

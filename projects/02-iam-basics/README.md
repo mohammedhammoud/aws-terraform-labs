@@ -1,13 +1,13 @@
 # 02 - IAM Basics
 
-This lab creates basic IAM identities and permissions with Terraform using Floci as a local AWS emulator.
+Basic IAM identities and permissions lab for Floci.
 
-The Terraform code was written manually to make sure I understand the difference between IAM users, groups, policies, roles, trust policies, and policy attachments.
+This is a learning-in-public lab. It mirrors real IAM building blocks, but Floci behavior can differ from AWS.
 
 ## Resources
 
 - S3 bucket: `02-iam-basics`
-- HTTPS-only bucket policy for the S3 bucket
+- HTTPS-only bucket policy and explicit S3 public access block
 - IAM user: `developer`
 - IAM group: `developers`
 - User group membership from `developer` to `developers`
@@ -17,18 +17,6 @@ The Terraform code was written manually to make sure I understand the difference
 - Trust policy allowing the EC2 service to assume the role
 - Role policy attachment from `app-role-02-iam-basics` to the S3 read-only policy
 - Terraform outputs for the IAM identities
-
-## What I learned
-
-- How to create IAM users and groups with Terraform
-- How to add a user to a group
-- How to create a custom IAM policy with `jsonencode`
-- How to attach a policy to an IAM group
-- How IAM users can receive permissions through groups
-- How to create an IAM role for a workload
-- How trust policies control who can assume a role
-- How `sts:AssumeRole` is used to get temporary credentials for a role
-- How to attach the same permissions policy to both a group and a role
 
 ## Permission paths
 
@@ -43,6 +31,19 @@ Workload access path:
 ```text
 EC2 service -> sts:AssumeRole -> app_role -> s3_read_only policy -> S3 read-only access
 ```
+
+## What I learned
+
+- How to create IAM users and groups with Terraform
+- How a user can inherit permissions through a group
+- How to create a custom IAM policy with `jsonencode`
+- How trust policies control who can assume a role
+- How `sts:AssumeRole` gives a workload temporary credentials
+- How to reuse one permissions policy for both humans and workloads
+
+## Floci note
+
+The permission model is the same shape as AWS, but this repo is for learning and local experimentation, not production guidance.
 
 ## Commands
 

@@ -1,15 +1,14 @@
 # 01 - S3 Basics
 
-This lab creates a private S3 bucket with Terraform using Floci as a local AWS emulator.
-
-The Terraform code was written manually to make sure I understand what each resource does and how the resources connect to each other.
+Private S3 bucket lab for Floci.
 
 ## Resources
 
-- Main S3 bucket: `01-s3-basics`
-- Separate log bucket: `01-s3-basics-logs`
-- Server access logging from the main bucket to the log bucket
-- HTTPS-only bucket policy on both buckets using a local value and `for_each`
+- Main bucket: `01-s3-basics`
+- Log bucket: `01-s3-basics-logs`
+- Server access logging from main bucket to log bucket
+- HTTPS-only bucket policies on both buckets
+- Explicit S3 public access blocks on both buckets
 - Terraform outputs for the main bucket
 
 ## What I learned
@@ -17,9 +16,9 @@ The Terraform code was written manually to make sure I understand what each reso
 - How to create S3 buckets with Terraform
 - How Terraform references resources
 - How to use bucket policies with `jsonencode`
-- How to use `for_each` to apply the same pattern to multiple resources
+- How to apply the same policy pattern to multiple buckets with `for_each`
 - Why the log bucket should not log to itself
-- Why public S3 access should usually be avoided
+- Why public S3 access should usually be blocked
 
 ## Commands
 

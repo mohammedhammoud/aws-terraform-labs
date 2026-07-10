@@ -1,0 +1,39 @@
+name: Terraform CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform fmt -check -recursive
+
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        terraform_dir:
+          - projects/01-s3-basics/terraform
+          - projects/02-iam-basics/terraform
+          - projects/03-lambda-s3/terraform
+          - projects/04-ec2-basics/terraform
+          - projects/05-vpc-basics/terraform
+          - projects/06-alb-ec2-basics/terraform
+    env:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_EC2_METADATA_DISABLED: true
+    defaults:
+      run:
+        working-directory: ${{ matrix.terraform_dir }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform init -backend=false
+      - run: terraform validate

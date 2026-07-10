@@ -1,35 +1,19 @@
 # 05 - VPC Basics
 
-This lab creates a basic public VPC network with Terraform using Floci as a local AWS emulator.
+Basic public VPC networking lab for Floci.
 
-The Terraform code was written manually to make sure I understand how VPCs, subnets, internet gateways, route tables, security groups, public IPs, and EC2 instances connect to each other.
+This is a learning-in-public networking lab. It uses Floci locally, so network behavior can differ from real AWS.
 
 ## Resources
 
 - VPC: `05-vpc-basics`
 - Public subnet: `05-vpc-basics-public`
-- Internet Gateway: `05-vpc-basics-igw`
-- Public route table: `05-vpc-basics-public-rt`
+- Internet Gateway and public route table
 - Route table association from the public subnet to the public route table
 - Security group: `05-vpc-basics-web-sg`
-- EC2 instance using the Floci Amazon Linux 2023 image
-- Inline `user_data` script that starts a simple HTTP server on port 80
+- EC2 instance with a public IP
+- Inline `user_data` script starting a small HTTP server
 - Terraform outputs for the network and EC2 instance
-
-## What I learned
-
-- How to create a VPC with Terraform
-- How CIDR blocks work at a basic level
-- How to create a subnet inside a VPC
-- Why resources like EC2 instances are placed in subnets, not directly in the VPC
-- How to attach an Internet Gateway to a VPC
-- How a route table controls where subnet traffic goes
-- How `0.0.0.0/0` represents all IPv4 traffic
-- How a route table association connects a subnet to a route table
-- Why a subnet becomes public when it has a route to an Internet Gateway
-- How a security group controls inbound and outbound traffic for a resource
-- How to allow HTTP traffic on port 80
-- How to assign a public IP to an EC2 instance
 
 ## Network flow
 
@@ -57,8 +41,6 @@ This means the subnet has a route for internet traffic.
 
 ## Security group rules
 
-The web security group allows:
-
 ```text
 Inbound:
 tcp/80 from 0.0.0.0/0
@@ -67,7 +49,7 @@ Outbound:
 all protocols to 0.0.0.0/0
 ```
 
-This means the EC2 instance can receive HTTP traffic on port 80 and can make outbound connections.
+This means the EC2 instance can receive HTTP traffic on port 80 and make outbound connections.
 
 ## Boot flow
 
@@ -78,6 +60,14 @@ Terraform creates EC2 instance
 -> script creates /tmp/index.html
 -> script starts a Python HTTP server on port 80
 ```
+
+## What I learned
+
+- How a subnet becomes public when it has a route to an Internet Gateway
+- How a route table association connects a subnet to its route table
+- How a security group controls inbound and outbound traffic for an instance
+- How a public IP changes reachability for an EC2 instance
+- How Floci can model AWS networking concepts even when underlying container networking differs
 
 ## Test
 
@@ -99,12 +89,6 @@ Check that the EC2 container is running:
 
 ```sh
 docker ps --format "table {{.Names}}\t{{.Ports}}\t{{.Status}}"
-```
-
-Example container name:
-
-```text
-floci-ec2-i-0ed8b1e86f3553137
 ```
 
 Check the HTTP server from inside the container:
@@ -131,36 +115,8 @@ Run from this project directory:
 ../../tools/tf.sh destroy
 ```
 
-## Notes
+## Floci note
 
-This lab uses Floci, not real AWS.
+Floci models the AWS networking shape, but instance private IPs and host reachability can differ because EC2 runs as local Docker containers.
 
-Floci runs EC2 instances as local Docker containers. The design still follows the real AWS networking pattern:
-
-```text
-VPC -> subnet -> route table -> Internet Gateway -> security group -> EC2
-```
-
-In real AWS, the EC2 instance would get a private IP from the subnet range, for example:
-
-```text
-10.0.1.x
-```
-
-In Floci, the private IP may come from Docker networking instead, for example:
-
-```text
-172.17.0.x
-```
-
-Floci may expose only SSH from the EC2 Docker container to the host machine. This means `curl http://127.0.0.1` from the host may not reach the EC2 web server even if the server is running correctly inside the container.
-
-The important distinction is:
-
-```text
-The Internet Gateway gives the VPC a door to the internet.
-The route table tells subnet traffic to use that door.
-The route table association connects the subnet to that route table.
-The security group controls what traffic is allowed into and out of the EC2 instance.
-The public IP makes the EC2 instance addressable from outside the VPC.
-```
+For example, real AWS private IPs would come from the subnet CIDR, while Floci may show Docker-style addresses instead.
