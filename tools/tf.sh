@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ACTIONS=(init fmt validate plan apply destroy)
+ACTIONS=(init fmt validate plan apply apply-auto destroy)
 ACTION="${1:-plan}"
 
 is_action() {
@@ -42,7 +42,7 @@ resolve_tf_dir_from_cwd() {
 
 if ! is_action "$ACTION"; then
   echo "Unknown action: $ACTION"
-  echo "Allowed: init, fmt, validate, plan, apply, destroy"
+  echo "Allowed: init, fmt, validate, plan, apply, apply-auto, destroy"
   exit 1
 fi
 
@@ -79,6 +79,12 @@ case "$ACTION" in
     terraform init
     terraform validate
     terraform apply
+    ;;
+  apply-auto)
+    terraform fmt
+    terraform init
+    terraform validate
+    terraform apply -auto-approve
     ;;
   destroy)
     terraform init
