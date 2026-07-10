@@ -46,10 +46,10 @@ EC2 service -> sts:AssumeRole -> app_role -> s3_read_only policy -> S3 read-only
 
 ## Commands
 
-Run from the repository root:
+Run from this project directory:
 
 ```sh
-./tools/tf.sh 02-iam-basics plan
-./tools/tf.sh 02-iam-basics apply
-./tools/tf.sh 02-iam-basics destroy
+../../tools/tf.sh plan
+../../tools/tf.sh apply
+../../tools/tf.sh destroy
 ```

@@ -68,11 +68,11 @@ This means Lambda can read uploaded files from `input/` and write processed file
 
 ## Test
 
-Run from the repository root:
+Run from this project directory:
 
 ```sh
-./tools/tf.sh 03-lambda-s3 plan
-./tools/tf.sh 03-lambda-s3 apply
+../../tools/tf.sh plan
+../../tools/tf.sh apply
 ```
 
 Upload a test file:
@@ -105,19 +105,19 @@ aws s3api get-bucket-notification-configuration \
 
 ## Commands
 
-Run from the repository root:
+Run from this project directory:
 
 ```sh
-./tools/tf.sh 03-lambda-s3 plan
-./tools/tf.sh 03-lambda-s3 apply
-./tools/tf.sh 03-lambda-s3 destroy
+../../tools/tf.sh plan
+../../tools/tf.sh apply
+../../tools/tf.sh destroy
 ```
 
 If destroy fails because the bucket is not empty:
 
 ```sh
 aws s3 rm s3://03-lambda-s3 --recursive
-./tools/tf.sh 03-lambda-s3 destroy
+../../tools/tf.sh destroy
 ```
 
 ## Notes

@@ -61,11 +61,11 @@ This means the EC2 instance can upload objects to the lab S3 bucket.
 
 ## Test
 
-Run from the repository root:
+Run from this project directory:
 
 ```sh
-./tools/tf.sh 04-ec2-basics plan
-./tools/tf.sh 04-ec2-basics apply
+../../tools/tf.sh plan
+../../tools/tf.sh apply
 ```
 
 Check that the EC2 container is running:
@@ -104,19 +104,19 @@ hello from ec2
 
 ## Commands
 
-Run from the repository root:
+Run from this project directory:
 
 ```sh
-./tools/tf.sh 04-ec2-basics plan
-./tools/tf.sh 04-ec2-basics apply
-./tools/tf.sh 04-ec2-basics destroy
+../../tools/tf.sh plan
+../../tools/tf.sh apply
+../../tools/tf.sh destroy
 ```
 
 If destroy fails because the bucket is not empty:
 
 ```sh
 aws s3 rm s3://04-ec2-basics --recursive
-./tools/tf.sh 04-ec2-basics destroy
+../../tools/tf.sh destroy
 ```
 
 ## Notes

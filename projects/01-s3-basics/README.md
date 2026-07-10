@@ -23,10 +23,10 @@ The Terraform code was written manually to make sure I understand what each reso
 
 ## Commands
 
-Run from the repository root:
+Run from this project directory:
 
 ```sh
-./tools/tf.sh 01-s3-basics plan
-./tools/tf.sh 01-s3-basics apply
-./tools/tf.sh 01-s3-basics destroy
+../../tools/tf.sh plan
+../../tools/tf.sh apply
+../../tools/tf.sh destroy
 ```

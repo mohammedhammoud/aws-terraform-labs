@@ -81,11 +81,11 @@ Terraform creates EC2 instance
 
 ## Test
 
-Run from the repository root:
+Run from this project directory:
 
 ```sh
-./tools/tf.sh 05-vpc-basics plan
-./tools/tf.sh 05-vpc-basics apply
+../../tools/tf.sh plan
+../../tools/tf.sh apply
 ```
 
 Check the EC2 instance:
@@ -123,12 +123,12 @@ hello from 05-vpc-basics
 
 ## Commands
 
-Run from the repository root:
+Run from this project directory:
 
 ```sh
-./tools/tf.sh 05-vpc-basics plan
-./tools/tf.sh 05-vpc-basics apply
-./tools/tf.sh 05-vpc-basics destroy
+../../tools/tf.sh plan
+../../tools/tf.sh apply
+../../tools/tf.sh destroy
 ```
 
 ## Notes

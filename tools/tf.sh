@@ -1,23 +1,61 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT="${1:-}"
-ACTION="${2:-plan}"
+ACTIONS=(init fmt validate plan apply destroy)
+ACTION="${1:-plan}"
 
-if [ -z "$PROJECT" ]; then
-  echo "Usage: tools/tf.sh <project-name> [init|fmt|validate|plan|apply|destroy]"
-  echo "Example: tools/tf.sh 01-s3-basics plan"
+is_action() {
+  local value="$1"
+
+  for action in "${ACTIONS[@]}"; do
+    if [ "$action" = "$value" ]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+has_tf_files() {
+  local dir="$1"
+
+  [ -d "$dir" ] || return 1
+  compgen -G "$dir"'/*.tf' > /dev/null
+}
+
+resolve_tf_dir_from_cwd() {
+  local dir
+  dir="$(pwd -P)"
+
+  if has_tf_files "$dir"; then
+    printf '%s\n' "$dir"
+    return 0
+  fi
+
+  if has_tf_files "$dir/terraform"; then
+    printf '%s\n' "$dir/terraform"
+    return 0
+  fi
+
+  return 1
+}
+
+if ! is_action "$ACTION"; then
+  echo "Unknown action: $ACTION"
+  echo "Allowed: init, fmt, validate, plan, apply, destroy"
   exit 1
 fi
 
-TF_DIR="projects/$PROJECT/terraform"
-
-if [ ! -d "$TF_DIR" ]; then
-  echo "Terraform directory not found: $TF_DIR"
+if ! TF_DIR="$(resolve_tf_dir_from_cwd)"; then
+  echo "Could not find Terraform config from current directory: $(pwd -P)"
+  echo "Run this from a project directory or its terraform/ directory."
+  echo "Example: ../../tools/tf.sh plan"
   exit 1
 fi
 
 cd "$TF_DIR"
+
+echo "Using Terraform directory: $TF_DIR"
 
 case "$ACTION" in
   init)
@@ -45,10 +83,5 @@ case "$ACTION" in
   destroy)
     terraform init
     terraform destroy
-    ;;
-  *)
-    echo "Unknown action: $ACTION"
-    echo "Allowed: init, fmt, validate, plan, apply, destroy"
-    exit 1
     ;;
 esac
