@@ -4,6 +4,59 @@ Basic ALB to Auto Scaling Group flow for Floci.
 
 This is a learning-in-public lab. It is meant to show how the pieces connect, not to present a production-ready Auto Scaling design, and Floci behavior can differ from real AWS.
 
+## Architecture
+
+### Request and provisioning
+
+```mermaid
+flowchart TD
+
+  Client[Client] --> ALBSG[ALB Security Group<br/>allows TCP 80 from internet]
+  ALBSG --> ALB[Application Load Balancer]
+  ALB --> Listener[Listener :80]
+  Listener --> TG[Target Group]
+
+  TG -- forwards traffic --> EC2SG[EC2 Security Group<br/>allows TCP 80 from ALB SG]
+  EC2SG --> EC2A[EC2 A]
+  EC2SG --> EC2B[EC2 B]
+
+  LT[Launch Template] --> ASG[Auto Scaling Group]
+  ASG -- creates and registers --> EC2A
+  ASG -- creates and registers --> EC2B
+```
+
+### Network placement
+
+```mermaid
+flowchart TD
+
+  Client[Client]
+
+  subgraph VPC["VPC 10.0.0.0/16"]
+
+    IGW[Internet Gateway]
+    RT[Public Route Table<br/>0.0.0.0/0 → IGW]
+
+    subgraph SubnetA["Public Subnet A · AZ A<br/>10.0.1.0/24"]
+      EC2A[EC2 A]
+    end
+
+    subgraph SubnetB["Public Subnet B · AZ B<br/>10.0.2.0/24"]
+      EC2B[EC2 B]
+    end
+
+    ALB[Application Load Balancer<br/>spans both subnets]
+
+    RT -. associated with .-> SubnetA
+    RT -. associated with .-> SubnetB
+    RT --> IGW
+  end
+
+  Client --> ALB
+  ALB --- SubnetA
+  ALB --- SubnetB
+```
+
 ## Resources
 
 - VPC: `10.0.0.0/16`
@@ -19,18 +72,6 @@ This is a learning-in-public lab. It is meant to show how the pieces connect, no
 - EC2 Launch Template
 - Auto Scaling Group
 - Two EC2 instances running a small Python HTTP server
-
-## Architecture
-
-```text
-Internet
-  -> Application Load Balancer
-  -> Listener :80
-  -> Target Group
-  -> Auto Scaling Group
-  -> EC2 Instance A
-  -> EC2 Instance B
-```
 
 The EC2 instances serve:
 
@@ -72,7 +113,9 @@ The Launch Template defines how each EC2 instance is created:
 - User data
 - Instance tags
 
-The Auto Scaling Group creates the instances across the configured subnets and registers them automatically in the target group.
+The Auto Scaling Group creates instances across the configured subnets and registers them automatically in the target group.
+
+The target group forwards traffic only to instances that pass its health checks.
 
 ## Key concepts
 
@@ -80,39 +123,12 @@ The Auto Scaling Group creates the instances across the configured subnets and r
 - An Auto Scaling Group controls how many instances should exist.
 - The desired capacity is the number of instances the group tries to maintain.
 - The minimum and maximum capacities define the allowed scaling range.
+- The Auto Scaling Group creates EC2 instances in the configured subnets.
 - The Auto Scaling Group automatically registers and removes instances from the target group.
 - A manual `aws_lb_target_group_attachment` is not needed when the target group is connected directly to the Auto Scaling Group.
-- ELB health checks allow the Auto Scaling Group to use target health when evaluating instances.
+- `health_check_type = "ELB"` lets the Auto Scaling Group use load balancer target health when evaluating instances.
 - The health check grace period gives new instances time to start before they are evaluated.
-
-## Terraform flow
-
-```text
-VPC
-  -> Public subnets
-  -> Internet Gateway
-  -> Route table
-  -> Security groups
-  -> ALB
-  -> Target group
-  -> Listener
-  -> Launch Template
-  -> Auto Scaling Group
-  -> EC2 instances
-  -> Automatic target registration
-```
-
-## Request flow
-
-```text
-Client
-  -> ALB
-  -> Listener
-  -> Target Group
-  -> Healthy EC2 instance
-```
-
-The ALB forwards traffic only to targets that pass the target group health checks.
+- The target group belongs to the VPC, but EC2 registration happens through the Auto Scaling Group.
 
 ## What I learned
 
@@ -124,6 +140,7 @@ The ALB forwards traffic only to targets that pass the target group health check
 - How ALB health checks and Auto Scaling health checks work together
 - Why changing a Launch Template does not automatically replace already running instances
 - Why recreating or refreshing instances may be required for a new Launch Template version to take effect
+- Why subnets determine where instances run, while the target group determines which instances receive traffic
 
 ## Commands
 
@@ -135,6 +152,12 @@ Run from this project directory:
 ../../tools/tf.sh validate
 ../../tools/tf.sh plan
 ../../tools/tf.sh apply
+```
+
+Apply without confirmation:
+
+```sh
+../../tools/tf.sh apply-auto
 ```
 
 Destroy the lab:
@@ -163,6 +186,13 @@ List EC2 instances:
 
 ```sh
 aws ec2 describe-instances \
+  --no-cli-pager
+```
+
+List load balancers:
+
+```sh
+aws elbv2 describe-load-balancers \
   --no-cli-pager
 ```
 
@@ -203,18 +233,11 @@ hello from 07-alb-autoscaling
 Both instances should eventually appear as healthy targets:
 
 ```text
-Auto Scaling Group
-  -> EC2 Instance A -> healthy
-  -> EC2 Instance B -> healthy
+EC2 Instance A -> healthy
+EC2 Instance B -> healthy
 ```
 
-After updating the Launch Template or user data, existing Auto Scaling instances may need to be recreated before the change is visible.
-
-## Local Floci note
-
-Floci creates the ALB, Launch Template, Auto Scaling Group, EC2 containers, and target registrations for this lab.
-
-Target registration can initially appear as:
+Target registration may initially appear as:
 
 ```text
 initial
@@ -227,7 +250,15 @@ After the user data starts the HTTP server and the first health checks succeed, 
 healthy
 ```
 
-As in the previous ALB lab, the ALB DNS name may not be reachable from the host on port `80` in the local setup. `*.localhost.floci.io:4566` reaches the Floci edge/API endpoint, not necessarily the ALB listener.
+After updating the Launch Template or user data, existing Auto Scaling instances may need to be recreated before the change is visible.
+
+## Local Floci note
+
+Floci creates the ALB, Launch Template, Auto Scaling Group, EC2 containers, and target registrations for this lab.
+
+As in the previous ALB lab, the ALB DNS name may not be reachable from the host on port `80` in the local setup.
+
+`*.localhost.floci.io:4566` reaches the Floci edge/API endpoint, not necessarily the ALB listener.
 
 ## Real AWS note
 
