@@ -12,18 +12,24 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
       - run: terraform fmt -check -recursive
 
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      terraform_dirs: ${{ steps.discover.outputs.terraform_dirs }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: discover
+        run: |
+          terraform_dirs=$(find projects -mindepth 2 -maxdepth 2 -type d -name terraform | sort | jq -R -s -c 'split("\n")[:-1]')
+          echo "terraform_dirs=$terraform_dirs" >> "$GITHUB_OUTPUT"
+
   validate:
+    needs: discover
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        terraform_dir:
-          - projects/01-s3-basics/terraform
-          - projects/02-iam-basics/terraform
-          - projects/03-lambda-s3/terraform
-          - projects/04-ec2-basics/terraform
-          - projects/05-vpc-basics/terraform
-          - projects/06-alb-ec2-basics/terraform
+        terraform_dir: ${{ fromJson(needs.discover.outputs.terraform_dirs) }}
     env:
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
