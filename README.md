@@ -69,6 +69,7 @@ cd projects/01-s3-basics
 - `06-alb-ec2-basics` — ALB, target group, listener, security groups, EC2 backend
 - `07-alb-autoscaling` — ALB, launch template, auto scaling group, EC2 backend
 - `08-ecs-fargate-alb` — ECS cluster, Fargate service, task definition, ALB backend
+- `09-ecs-ec2-alb` — ECS cluster, EC2 capacity, task definition, service, ALB backend
 
 ## Security and cost
 
