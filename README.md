@@ -70,6 +70,7 @@ cd projects/01-s3-basics
 - `07-alb-autoscaling` — ALB, launch template, auto scaling group, EC2 backend
 - `08-ecs-fargate-alb` — ECS cluster, Fargate service, task definition, ALB backend
 - `09-ecs-ec2-alb` — ECS cluster, EC2 capacity, task definition, service, ALB backend
+- `10-step-functions` — Step Functions state machine with Lambda invoke workflow
 - `11-cloudfront-s3-oac` — CloudFront distribution, private S3 origin, OAC, bucket policy
 
 ## Security and cost
