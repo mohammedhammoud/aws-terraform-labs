@@ -12,3 +12,8 @@ variable "subnet_count" {
   type    = number
   default = 2
 }
+
+variable "desired_task_count" {
+  type    = number
+  default = 2
+}
