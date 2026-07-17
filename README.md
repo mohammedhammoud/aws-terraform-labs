@@ -74,6 +74,7 @@ cd projects/01-s3-basics
 - `11-cloudfront-s3-oac` — CloudFront distribution, private S3 origin, OAC, bucket policy
 - `12-eventbridge` — EventBridge custom bus, rule, Lambda targets, invoke permissions
 - `13-rds-private` — VPC, public EC2, private PostgreSQL RDS, DB subnet group, security groups
+- `14-observability` — EC2 observability pipeline with CloudWatch Agent, logs, metrics, dashboard, alarm, and SNS notifications
 
 ## Security and cost
 
