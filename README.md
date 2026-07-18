@@ -1,13 +1,6 @@
 # AWS Floci Lab
 
-Learning-in-public repo for small AWS + Terraform labs. Most are written for local Floci use, but not every lab was exercised end-to-end in Floci.
-
-## Disclaimer
-
-- Floci emulates AWS locally.
-- Behavior can differ from real AWS.
-- Some labs were verified in a real AWS account instead of Floci when local support was incomplete.
-- This repo is for learning and experimentation, not production.
+Small AWS + Terraform labs. Mostly built for local Floci. A few were only verified in AWS where local support was missing.
 
 ## Repo structure
 
@@ -21,8 +14,8 @@ tools/
 ```
 
 Each lab has:
-- a `README.md` with context, test steps, and Floci caveats
-- a `terraform/` directory with the actual Terraform config
+- a short `README.md`
+- Terraform in `terraform/`
 
 ## Prerequisites
 
@@ -48,8 +41,6 @@ Expected local values:
 
 ## Run a lab
 
-Example:
-
 ```sh
 cd projects/01-s3-basics
 ../../tools/tf.sh init
@@ -58,43 +49,30 @@ cd projects/01-s3-basics
 ../../tools/tf.sh destroy
 ```
 
-`tools/tf.sh` expects to be run from a lab directory or its `terraform/` subdirectory.
+`tools/tf.sh` expects to run from a lab directory or its `terraform/` subdirectory.
 
 ## Labs
 
 - `01-s3-basics` — private S3 bucket, access logging, HTTPS-only bucket policies
 - `02-iam-basics` — IAM users, groups, policies, roles, trust policies
 - `03-lambda-s3` — S3 event notification invoking Lambda
-- `04-ec2-basics` — EC2 instance role, instance profile, user data, S3 access
+- `04-ec2-basics` — EC2 role, instance profile, user data, S3 access
 - `05-vpc-basics` — VPC, public subnet, route table, internet gateway, security group, EC2
 - `06-alb-ec2-basics` — ALB, target group, listener, security groups, EC2 backend
-- `07-alb-autoscaling` — ALB, launch template, auto scaling group, EC2 backend
-- `08-ecs-fargate-alb` — ECS cluster, Fargate service, task definition, ALB backend
-- `09-ecs-ec2-alb` — ECS cluster, EC2 capacity, task definition, service, ALB backend
-- `10-step-functions` — Step Functions state machine with Lambda invoke workflow
-- `11-cloudfront-s3-oac` — CloudFront distribution, private S3 origin, OAC, bucket policy — verified in real AWS
-- `12-eventbridge` — EventBridge custom bus, rule, Lambda targets, invoke permissions
-- `13-rds-private` — VPC, public EC2, private PostgreSQL RDS, DB subnet group, security groups
-- `14-observability` — EC2 observability pipeline with CloudWatch Agent, logs, metrics, dashboard, alarm, and SNS notifications — verified in real AWS
-- `15-github-oidc` — GitHub Actions OIDC to AWS with IAM OIDC provider, restricted trust policy, and temporary credentials
-- `16-ecs-blue-green` — ECS on EC2 with CodeDeploy Blue/Green deployments, blue and green target groups, ALB traffic switching, and automatic rollback
-- `17-sqs-basics` — SQS queue, Lambda consumer, event source mapping, visibility timeout, and basic async message processing
+- `07-alb-autoscaling` — ALB, launch template, Auto Scaling Group, EC2 backend
+- `08-ecs-fargate-alb` — ECS cluster, Fargate service, task definition, ALB
+- `09-ecs-ec2-alb` — ECS cluster, EC2 capacity, task definition, service, ALB
+- `10-step-functions` — Step Functions state machine with two Lambda steps
+- `11-cloudfront-s3-oac` — CloudFront, private S3 origin, OAC, bucket policy
+- `12-eventbridge` — custom event bus, rule, Lambda targets
+- `13-rds-private` — public EC2 talking to private PostgreSQL RDS
+- `14-observability` — EC2 metrics, logs, dashboard, alarm, SNS notifications
+- `15-github-oidc` — GitHub Actions OIDC to AWS
+- `16-ecs-blue-green` — ECS on EC2 with CodeDeploy blue/green
+- `17-sqs-basics` — SQS queue, Lambda consumer, event source mapping
 
-## Security and cost
+## Notes
 
-These labs are intended for local Floci usage.
-
-Do not point them at real AWS without reviewing:
-- resources created
-- IAM permissions
-- networking exposure
-- possible cost impact
-
-## CI
-
-GitHub Actions checks:
-- `terraform fmt -check -recursive`
-- `terraform init -backend=false`
-- `terraform validate`
-
-CI only runs static Terraform validation without real AWS credentials. It does not prove end-to-end runtime behavior in Floci or real AWS.
+- Local Floci behavior can differ from AWS.
+- Review IAM, networking, and cost before pointing any lab at real AWS.
+- CI only runs static Terraform checks. It does not prove end-to-end runtime behavior.

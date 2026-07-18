@@ -1,6 +1,6 @@
 # 01 - S3 Basics
 
-Private S3 bucket lab for Floci.
+Private S3 bucket lab with access logs and HTTPS-only policies.
 
 ## Architecture
 
@@ -24,21 +24,16 @@ flowchart LR
 - Log bucket: `01-s3-basics-logs`
 - Server access logging from main bucket to log bucket
 - HTTPS-only bucket policies on both buckets
-- Explicit S3 public access blocks on both buckets
-- Terraform outputs for the main bucket
+- Explicit public access blocks on both buckets
 
 ## What I learned
 
 - How to create S3 buckets with Terraform
-- How Terraform references resources
-- How to use bucket policies with `jsonencode`
-- How to apply the same policy pattern to multiple buckets with `for_each`
+- How to reuse one bucket policy pattern with `for_each`
 - Why the log bucket should not log to itself
-- Why public S3 access should usually be blocked
+- Why public S3 access should usually stay blocked
 
-## Commands
-
-Run from this project directory:
+## Run
 
 ```sh
 ../../tools/tf.sh plan
