@@ -52,10 +52,10 @@ resource "aws_ecs_service" "lab" {
   }
 
   lifecycle {
-    ignore_changes = [ 
+    ignore_changes = [
       task_definition,
       load_balancer
-     ]
+    ]
   }
 
   depends_on = [
