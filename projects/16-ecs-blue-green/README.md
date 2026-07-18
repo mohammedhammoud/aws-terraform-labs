@@ -1,8 +1,10 @@
-# 16 - ECS Blue/Green
+# 16 - AWS ECS Blue/Green Deployment with Terraform
 
-ECS on EC2 with CodeDeploy switching traffic from a blue task set to a green one.
+AWS ECS and CodeDeploy lab built with Terraform for blue/green deployments on ECS running on EC2.
 
 ## Architecture
+
+This diagram shows the production request path through the ALB to the blue task set.
 
 ```mermaid
 flowchart TD
@@ -15,6 +17,8 @@ flowchart TD
     ASG[Auto Scaling Group] --> EC21[EC2 Instance]
     ASG --> EC22[EC2 Instance]
 ```
+
+This diagram shows CodeDeploy creating the green task set and switching traffic after health checks pass.
 
 ```mermaid
 flowchart TD

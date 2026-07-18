@@ -1,8 +1,10 @@
-# 12 - EventBridge
+# 12 - AWS EventBridge with Terraform
 
-Custom EventBridge bus routing one event to two Lambda functions.
+AWS EventBridge lab built with Terraform for routing one custom event to two Lambda targets.
 
 ## Architecture
+
+This diagram shows one EventBridge rule fanning out an `OrderCreated` event to two Lambda functions.
 
 ```mermaid
 flowchart TD

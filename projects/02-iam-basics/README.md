@@ -1,8 +1,10 @@
-# 02 - IAM Basics
+# 02 - AWS IAM Basics with Terraform
 
-IAM users, groups, policies, and roles wired to one S3 bucket.
+AWS IAM lab built with Terraform for users, groups, policies, roles, and S3 access.
 
 ## Architecture
+
+This diagram shows the human access path and the EC2 role access path to the same S3 policy.
 
 ```mermaid
 flowchart LR

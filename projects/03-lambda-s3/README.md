@@ -1,8 +1,10 @@
-# 03 - Lambda S3
+# 03 - AWS Lambda and S3 with Terraform
 
-S3 object creation triggers Lambda, which reads from `input/` and writes to `output/`.
+AWS Lambda and S3 lab built with Terraform where S3 object creation triggers a Lambda function.
 
 ## Architecture
+
+This diagram shows the S3 event flow from `input/` uploads to Lambda processing and `output/` writes.
 
 ```mermaid
 flowchart LR

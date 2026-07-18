@@ -1,8 +1,10 @@
-# 14 - Observability
+# 14 - AWS Observability with CloudWatch and Terraform
 
-EC2 observability pipeline with CloudWatch metrics, logs, dashboard, alarm, and SNS email.
+AWS observability lab built with Terraform for EC2 metrics, logs, dashboards, alarms, and SNS notifications.
 
 ## Architecture
+
+This diagram shows the CloudWatch Agent sending logs and metrics from EC2 into dashboards, alarms, and SNS.
 
 ```mermaid
 flowchart LR

@@ -1,8 +1,10 @@
-# 15 - GitHub OIDC
+# 15 - GitHub Actions OIDC to AWS with Terraform
 
-GitHub Actions assumes an AWS role with OIDC instead of stored access keys.
+GitHub Actions and AWS IAM lab built with Terraform for OIDC-based authentication without long-lived access keys.
 
 ## Architecture
+
+This diagram shows GitHub Actions exchanging an OIDC token for temporary AWS credentials through STS.
 
 ```mermaid
 flowchart LR

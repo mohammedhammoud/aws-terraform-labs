@@ -1,8 +1,10 @@
-# 05 - VPC Basics
+# 05 - AWS VPC Basics with Terraform
 
-Public subnet lab with one EC2 instance and a small HTTP server.
+AWS VPC lab built with Terraform for a public subnet, route tables, an internet gateway, and one EC2 web server.
 
 ## Architecture
+
+This diagram shows the public-network path from the internet to the EC2 instance.
 
 ```mermaid
 flowchart LR
@@ -34,7 +36,7 @@ Internet -> Internet Gateway -> route table -> public subnet -> security group -
 - A subnet becomes public when it has a route to an Internet Gateway
 - Route table associations matter just as much as the route itself
 - Security groups define reachability separately from subnet design
-- Floci can model the shape well even if container networking differs from AWS
+- Floci can model the network shape well even if container networking differs from AWS
 
 ## Run
 

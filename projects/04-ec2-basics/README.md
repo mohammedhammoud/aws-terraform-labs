@@ -1,8 +1,10 @@
-# 04 - EC2 Basics
+# 04 - AWS EC2 Basics with Terraform
 
-EC2 instance with an IAM role writes a file to S3 during boot.
+AWS EC2 lab built with Terraform where an instance bootstraps with user data and writes a file to S3.
 
 ## Architecture
+
+This diagram shows Terraform creating the EC2 instance, the user data flow, and the S3 upload.
 
 ```mermaid
 flowchart LR

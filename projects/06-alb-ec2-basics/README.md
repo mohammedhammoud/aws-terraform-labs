@@ -1,8 +1,10 @@
-# 06 - ALB EC2 Basics
+# 06 - AWS ALB and EC2 with Terraform
 
-Public ALB forwarding HTTP traffic to one EC2 backend.
+AWS Application Load Balancer and EC2 lab built with Terraform for a single HTTP backend.
 
 ## Architecture
+
+This diagram shows the request path from the Application Load Balancer listener to the EC2 target.
 
 ```mermaid
 flowchart LR

@@ -1,13 +1,14 @@
-# 13 - Private RDS
+# 13 - AWS RDS PostgreSQL in a Private VPC with Terraform
 
-Private PostgreSQL RDS instance with one EC2 client inside the same VPC.
+AWS RDS PostgreSQL lab built with Terraform for a private database reached from an EC2 instance inside the same VPC.
 
 ## Architecture
 
+This diagram shows the EC2 client, the security-group hop, and the private RDS endpoint.
+
 ```mermaid
 flowchart TD
-  Client[Client] --> EC2[EC2 Instance
-Public Subnet]
+  Client[Client] --> EC2[EC2 Instance<br/>Public Subnet]
   EC2 --> SG1[EC2 Security Group]
   SG1 --> SG2[RDS Security Group]
   SG2 --> RDS[Private RDS PostgreSQL]

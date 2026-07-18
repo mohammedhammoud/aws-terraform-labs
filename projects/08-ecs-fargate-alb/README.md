@@ -1,8 +1,10 @@
-# 08 - ECS Fargate ALB
+# 08 - AWS ECS Fargate and ALB with Terraform
 
-ECS service on Fargate behind an ALB.
+AWS ECS Fargate lab built with Terraform for a service behind an Application Load Balancer.
 
 ## Architecture
+
+This diagram shows the request path from the ALB to the ECS service and Fargate task.
 
 ```mermaid
 flowchart TD
@@ -38,8 +40,8 @@ Welcome to nginx!
 
 ## Notes
 
-- The service uses `launch_type = FARGATE` and `network_mode = awsvpc`.
-- The target group uses `target_type = "ip"` because tasks register by IP.
+- The ECS service uses `launch_type = FARGATE` and `network_mode = awsvpc`.
+- The target group uses `target_type = "ip"` because Fargate tasks register by IP.
 - In this local setup, Floci exposes container port `80` on the host, so this lab stays at one task.
 
 ## What I learned

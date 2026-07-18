@@ -1,8 +1,10 @@
-# 09 - ECS EC2 ALB
+# 09 - AWS ECS on EC2 and ALB with Terraform
 
-ECS on EC2 behind an ALB, with capacity coming from an Auto Scaling Group.
+AWS ECS on EC2 lab built with Terraform for an ECS service behind an Application Load Balancer.
 
 ## Architecture
+
+This diagram shows the ALB request path, the ECS service, and the EC2 capacity behind the cluster.
 
 ```mermaid
 flowchart TD
@@ -44,14 +46,14 @@ Welcome to nginx!
 
 ## Notes
 
-- The service uses `launch_type = EC2` with `network_mode = awsvpc`.
-- EC2 instances join the cluster through ECS agent config in `user_data`.
-- The target group still uses `target_type = "ip"` because tasks register by IP, not by instance ID.
+- The ECS service uses `launch_type = EC2` with `network_mode = awsvpc`.
+- EC2 instances join the ECS cluster through ECS agent config in `user_data`.
+- The target group still uses `target_type = "ip"` because ECS tasks register by IP, not by instance ID.
 
 ## What I learned
 
 - The difference between ECS on EC2 and ECS on Fargate
-- How the Launch Template and ASG provide ECS capacity
+- How the Launch Template and Auto Scaling Group provide ECS capacity
 - How ECS agent bootstrap in `user_data` connects instances to the cluster
 - Why `awsvpc` tasks still use IP targets even on EC2
 

@@ -1,8 +1,10 @@
-# 10 - Step Functions
+# 10 - AWS Step Functions with Terraform
 
-Step Functions state machine with a validate step, a choice, and a process step.
+AWS Step Functions lab built with Terraform for a state machine that validates input and then processes it with Lambda.
 
 ## Architecture
+
+This diagram shows the Step Functions workflow from validation to either failure or processing.
 
 ```mermaid
 flowchart TD
@@ -30,7 +32,7 @@ Invalid input: Validate -> Fail
 
 ## What I learned
 
-- How Step Functions holds the workflow while Lambdas hold the business logic
+- How Step Functions holds the workflow while Lambda holds the business logic
 - How `Choice` states branch based on previous output
 - How the Step Functions role differs from the Lambda execution role
 - Why even a small workflow is easier to read once it is explicit in the state machine

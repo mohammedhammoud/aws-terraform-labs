@@ -1,8 +1,10 @@
-# 17 - SQS Basics
+# 17 - AWS SQS and Lambda with Terraform
 
-SQS queue feeding a Lambda function through an event source mapping.
+AWS SQS and Lambda lab built with Terraform for asynchronous message processing through an event source mapping.
 
 ## Architecture
+
+This diagram shows SQS feeding messages into Lambda through the event source mapping.
 
 ```mermaid
 flowchart TD

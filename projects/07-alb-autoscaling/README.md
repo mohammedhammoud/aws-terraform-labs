@@ -1,8 +1,10 @@
-# 07 - ALB Auto Scaling
+# 07 - AWS ALB and Auto Scaling with Terraform
 
-ALB in front of an Auto Scaling Group running two EC2 web servers.
+AWS Application Load Balancer and EC2 Auto Scaling lab built with Terraform for two web instances behind one ALB.
 
 ## Architecture
+
+This diagram shows the ALB request path and the Launch Template plus Auto Scaling Group that create the EC2 targets.
 
 ```mermaid
 flowchart TD
@@ -44,15 +46,15 @@ desired: 2
 max: 4
 ```
 
-The ASG registers instances in the target group, so no manual target attachment is needed.
+The Auto Scaling Group registers instances in the target group, so no manual target attachment is needed.
 
 ## What I learned
 
 - How a Launch Template replaces hand-made `aws_instance` resources
-- How the ASG and target group wire together directly
+- How the Auto Scaling Group and target group wire together directly
 - Why `health_check_type = "ELB"` matters here
 - Why Launch Template changes do not replace running instances by themselves
-- When instance recreation or refresh is needed to see new user data
+- When instance recreation or refresh is needed to pick up new user data
 
 ## Run
 
@@ -72,7 +74,7 @@ Check target health:
 aws elbv2 describe-target-health   --target-group-arn "<target-group-arn>"   --no-cli-pager
 ```
 
-Check the app inside one EC2 container:
+Check one EC2 container:
 
 ```sh
 docker exec -it <ec2-container-name> curl http://127.0.0.1:80

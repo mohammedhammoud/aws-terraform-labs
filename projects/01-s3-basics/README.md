@@ -1,8 +1,10 @@
-# 01 - S3 Basics
+# 01 - AWS S3 Basics with Terraform
 
-Private S3 bucket lab with access logs and HTTPS-only policies.
+AWS S3 lab built with Terraform for private buckets, access logs, and HTTPS-only bucket policies.
 
 ## Architecture
+
+This diagram shows the main S3 bucket, the log bucket, and the shared security controls.
 
 ```mermaid
 flowchart LR
