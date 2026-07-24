@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
       - id: discover
         run: |
-          terraform_dirs=$(find projects -mindepth 2 -maxdepth 2 -type d -name terraform | sort | jq -R -s -c 'split("\n")[:-1]')
+          terraform_dirs=$(find labs -mindepth 2 -maxdepth 2 -type d -name terraform | sort | jq -R -s -c 'split("\n")[:-1]')
           echo "terraform_dirs=$terraform_dirs" >> "$GITHUB_OUTPUT"
 
   validate:
