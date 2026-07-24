@@ -1,0 +1,122 @@
+:root {
+  color-scheme: light;
+  font-family: Inter, system-ui, sans-serif;
+  line-height: 1.5;
+  color: #111827;
+  background: #f3f4f6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button,
+.button-link {
+  border: 0;
+  border-radius: 0.5rem;
+  background: #111827;
+  color: #ffffff;
+  cursor: pointer;
+  padding: 0.65rem 1rem;
+  text-decoration: none;
+}
+
+.button-link.secondary {
+  background: #4b5563;
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.topbar {
+  background: #111827;
+  padding: 1rem 1.5rem;
+}
+
+.brand {
+  color: #ffffff;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.content {
+  margin: 0 auto;
+  max-width: 48rem;
+  padding: 1.5rem;
+}
+
+.page-header,
+.todo-item,
+.actions,
+.checkbox-row {
+  display: flex;
+  align-items: center;
+}
+
+.page-header,
+.todo-item {
+  justify-content: space-between;
+}
+
+.todo-list {
+  display: grid;
+  gap: 1rem;
+  list-style: none;
+  padding: 0;
+}
+
+.card {
+  background: #ffffff;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+  padding: 1rem;
+}
+
+.form {
+  display: grid;
+  gap: 1rem;
+}
+
+.form label {
+  display: grid;
+  gap: 0.5rem;
+}
+
+input[type="text"],
+input:not([type]) {
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+}
+
+.checkbox-row {
+  gap: 0.75rem;
+}
+
+.actions {
+  gap: 0.75rem;
+}
+
+.grow {
+  flex: 1;
+}
+
+.completed {
+  color: #6b7280;
+  text-decoration: line-through;
+}
+
+.error {
+  color: #b91c1c;
+}
