@@ -1,5 +1,5 @@
 resource "aws_ecr_repository" "backend" {
-  name                 = "${var.project_name}-backend"
+  name                 = "${local.name_prefix}-backend"
   image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
@@ -12,7 +12,7 @@ resource "aws_ecr_repository" "backend" {
 }
 
 resource "aws_ecr_repository" "frontend" {
-  name                 = "${var.project_name}-frontend"
+  name                 = "${local.name_prefix}-frontend"
   image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
