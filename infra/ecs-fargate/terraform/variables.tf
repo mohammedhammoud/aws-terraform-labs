@@ -46,4 +46,13 @@ variable "availability_zones" {
   }
 }
 
+variable "frontend_container_port" {
+  type    = number
+  default = 80
+}
+
+variable "backend_container_port" {
+  type    = number
+  default = 3000
+}
 
