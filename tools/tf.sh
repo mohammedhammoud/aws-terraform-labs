@@ -4,6 +4,9 @@ set -euo pipefail
 ACTIONS=(init fmt validate plan apply apply-auto destroy)
 ACTION="${1:-plan}"
 
+shift || true
+TF_ARGS=("$@")
+
 is_action() {
   local value="$1"
 
@@ -59,35 +62,41 @@ echo "Using Terraform directory: $TF_DIR"
 
 case "$ACTION" in
   init)
-    terraform init
+    terraform init "${TF_ARGS[@]}"
     ;;
+
   fmt)
-    terraform fmt
+    terraform fmt "${TF_ARGS[@]}"
     ;;
+
   validate)
     terraform init
-    terraform validate
+    terraform validate "${TF_ARGS[@]}"
     ;;
+
   plan)
     terraform fmt
     terraform init
     terraform validate
-    terraform plan
+    terraform plan "${TF_ARGS[@]}"
     ;;
+
   apply)
     terraform fmt
     terraform init
     terraform validate
-    terraform apply
+    terraform apply "${TF_ARGS[@]}"
     ;;
+
   apply-auto)
     terraform fmt
     terraform init
     terraform validate
-    terraform apply -auto-approve
+    terraform apply -auto-approve "${TF_ARGS[@]}"
     ;;
+
   destroy)
     terraform init
-    terraform destroy
+    terraform destroy "${TF_ARGS[@]}"
     ;;
 esac
