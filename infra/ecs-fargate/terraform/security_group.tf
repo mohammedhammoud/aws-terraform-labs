@@ -26,8 +26,8 @@ resource "aws_security_group" "backend" {
   vpc_id = aws_vpc.main.id
 
   ingress {
-    from_port       = var.backend_container_port
-    to_port         = var.backend_container_port
+    from_port       = var.backend_port
+    to_port         = var.backend_port
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
   }
@@ -50,8 +50,8 @@ resource "aws_security_group" "frontend" {
   vpc_id = aws_vpc.main.id
 
   ingress {
-    from_port       = var.frontend_container_port
-    to_port         = var.frontend_container_port
+    from_port       = var.frontend_port
+    to_port         = var.frontend_port
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
   }

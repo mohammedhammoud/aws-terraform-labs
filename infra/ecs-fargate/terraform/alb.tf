@@ -11,15 +11,19 @@ resource "aws_lb" "main" {
 }
 
 resource "aws_lb_target_group" "backend" {
-  name        = "${local.name_prefix}-be-tg"
+  name_prefix = "todo-"
   target_type = "ip"
-  port        = var.backend_container_port
+  port        = var.backend_port
   protocol    = "HTTP"
   vpc_id      = aws_vpc.main.id
 
   health_check {
     path    = "/health"
     matcher = "200"
+  }
+
+  lifecycle {
+    create_before_destroy = true
   }
 
   tags = {
@@ -30,7 +34,7 @@ resource "aws_lb_target_group" "backend" {
 resource "aws_lb_target_group" "frontend" {
   name        = "${local.name_prefix}-fe-tg"
   target_type = "ip"
-  port        = var.frontend_container_port
+  port        = var.frontend_port
   protocol    = "HTTP"
   vpc_id      = aws_vpc.main.id
 
