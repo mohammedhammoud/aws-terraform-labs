@@ -67,3 +67,19 @@ resource "aws_security_group" "frontend" {
     Name = "${local.name_prefix}-frontend-sg"
   }
 }
+
+resource "aws_security_group" "db" {
+  name   = "${local.name_prefix}-db-sg"
+  vpc_id = aws_vpc.main.id
+
+  ingress {
+    security_groups = [aws_security_group.backend.id]
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+  }
+
+  tags = {
+    Name = "${local.name_prefix}-db-sg"
+  }
+}

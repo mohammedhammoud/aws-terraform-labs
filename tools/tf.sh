@@ -4,8 +4,15 @@ set -euo pipefail
 ACTIONS=(init fmt validate plan apply apply-auto destroy)
 ACTION="${1:-plan}"
 
-shift || true
-TF_ARGS=("$@")
+if (($# > 0)); then
+  shift
+fi
+
+declare -a TF_ARGS=()
+
+if (($# > 0)); then
+  TF_ARGS=("$@")
+fi
 
 is_action() {
   local value="$1"
@@ -43,6 +50,17 @@ resolve_tf_dir_from_cwd() {
   return 1
 }
 
+run_tf() {
+  local command="$1"
+  shift
+
+  if ((${#TF_ARGS[@]} > 0)); then
+    terraform "$command" "$@" "${TF_ARGS[@]}"
+  else
+    terraform "$command" "$@"
+  fi
+}
+
 if ! is_action "$ACTION"; then
   echo "Unknown action: $ACTION"
   echo "Allowed: init, fmt, validate, plan, apply, apply-auto, destroy"
@@ -62,41 +80,41 @@ echo "Using Terraform directory: $TF_DIR"
 
 case "$ACTION" in
   init)
-    terraform init "${TF_ARGS[@]}"
+    run_tf init
     ;;
 
   fmt)
-    terraform fmt "${TF_ARGS[@]}"
+    run_tf fmt
     ;;
 
   validate)
     terraform init
-    terraform validate "${TF_ARGS[@]}"
+    run_tf validate
     ;;
 
   plan)
     terraform fmt
     terraform init
     terraform validate
-    terraform plan "${TF_ARGS[@]}"
+    run_tf plan
     ;;
 
   apply)
     terraform fmt
     terraform init
     terraform validate
-    terraform apply "${TF_ARGS[@]}"
+    run_tf apply
     ;;
 
   apply-auto)
     terraform fmt
     terraform init
     terraform validate
-    terraform apply -auto-approve "${TF_ARGS[@]}"
+    run_tf apply -auto-approve
     ;;
 
   destroy)
     terraform init
-    terraform destroy "${TF_ARGS[@]}"
+    run_tf destroy
     ;;
 esac

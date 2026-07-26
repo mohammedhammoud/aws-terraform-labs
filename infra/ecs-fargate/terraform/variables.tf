@@ -84,6 +84,11 @@ variable "backend_image_tag" {
   type = string
 }
 
+variable "backend_migration_image_tag" {
+  type    = string
+  default = null
+}
+
 variable "frontend_desired_count" {
   type    = number
   default = 1
@@ -92,4 +97,19 @@ variable "frontend_desired_count" {
 variable "backend_desired_count" {
   type    = number
   default = 1
+}
+
+variable "db_name" {
+  type    = string
+  default = "tododb"
+}
+
+variable "db_username" {
+  type    = string
+  default = "todouser"
+}
+
+variable "db_instance_class" {
+  type    = string
+  default = "db.t3.micro"
 }

@@ -9,6 +9,7 @@ resource "aws_ecs_cluster" "main" {
 resource "aws_ecs_task_definition" "backend" {
   family                   = "${local.name_prefix}-backend"
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
+  task_role_arn            = aws_iam_role.backend_task.arn
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
   cpu                      = var.backend_cpu
@@ -25,6 +26,24 @@ resource "aws_ecs_task_definition" "backend" {
           protocol      = "tcp"
         }
       ]
+      environment = [
+        {
+          name  = "DB_SECRET_ARN"
+          value = aws_db_instance.main.master_user_secret[0].secret_arn
+        },
+        {
+          name  = "DB_HOST"
+          value = aws_db_instance.main.address
+        },
+        {
+          name  = "DB_PORT"
+          value = tostring(aws_db_instance.main.port)
+        },
+        {
+          name  = "DB_NAME"
+          value = var.db_name
+        }
+      ]
       logConfiguration = {
         logDriver = "awslogs"
         options = {
@@ -37,6 +56,52 @@ resource "aws_ecs_task_definition" "backend" {
   ])
 }
 
+resource "aws_ecs_task_definition" "backend_migration" {
+  family                   = "${local.name_prefix}-backend-migration"
+  execution_role_arn       = aws_iam_role.ecs_task_execution.arn
+  task_role_arn            = aws_iam_role.backend_task.arn
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = var.backend_cpu
+  memory                   = var.backend_memory
+  container_definitions = jsonencode([
+    {
+      name      = "${local.name_prefix}-backend-migration-container"
+      image     = "${aws_ecr_repository.backend.repository_url}:${local.backend_migration_image_tag}"
+      essential = true
+      command = [
+        "node",
+        "backend/dist/scripts/migrate.js"
+      ]
+      environment = [
+        {
+          name  = "DB_SECRET_ARN"
+          value = aws_db_instance.main.master_user_secret[0].secret_arn
+        },
+        {
+          name  = "DB_HOST"
+          value = aws_db_instance.main.address
+        },
+        {
+          name  = "DB_PORT"
+          value = tostring(aws_db_instance.main.port)
+        },
+        {
+          name  = "DB_NAME"
+          value = var.db_name
+        }
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.backend.name
+          awslogs-region        = var.region
+          awslogs-stream-prefix = "backend-migration"
+        }
+      }
+    }
+  ])
+}
 
 resource "aws_ecs_task_definition" "frontend" {
   family                   = "${local.name_prefix}-frontend"
@@ -96,7 +161,8 @@ resource "aws_ecs_service" "backend" {
 
   depends_on = [
     aws_lb_listener_rule.backend,
-    aws_iam_role_policy_attachment.ecs_task_execution
+    aws_iam_role_policy_attachment.ecs_task_execution,
+    aws_iam_role_policy.backend_read_db_secret
   ]
 
   tags = {
