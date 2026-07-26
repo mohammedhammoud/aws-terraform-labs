@@ -1,8 +1,8 @@
 # AWS Terraform Labs
 
-Public AWS and Terraform learning repo with small labs focused on one concept at a time—like S3, IAM, Lambda, EC2, VPC, ECS, RDS, and EventBridge.
+Public AWS and Terraform learning repo with small labs and larger end-to-end labs focused on AWS, Terraform, and platform building.
 
-Most labs are designed for local Floci. A few were only verified in AWS where local support was missing.
+Many labs are designed for local Floci. Some larger labs were only verified in AWS where local support was missing.
 
 ## Topics covered
 
@@ -15,12 +15,20 @@ labs/
   <lab-name>/
     README.md
     terraform/
+infra/
+  <lab-name>/
+    README.md
+    terraform/
 tools/
   tf.sh
 ```
 
+`labs/` contains smaller concept-focused exercises.
+
+`infra/` contains larger end-to-end labs.
+
 Each lab has:
-- a short `README.md`
+- a `README.md`
 - Terraform in `terraform/`
 
 ## Prerequisites
@@ -78,6 +86,12 @@ cd labs/01-s3-basics
 | 15 | IAM, STS, GitHub Actions | GitHub OIDC, trust policies, temporary credentials | [15-github-oidc](labs/15-github-oidc) |
 | 16 | ECS, EC2, ALB, CodeDeploy | blue/green deployments, target groups, traffic shifting | [16-ecs-blue-green](labs/16-ecs-blue-green) |
 | 17 | SQS, Lambda | event source mapping, visibility timeout, async processing | [17-sqs-basics](labs/17-sqs-basics) |
+
+## End-to-end labs
+
+| Lab | AWS service(s) | Main concepts | Link |
+|---|---|---|---|
+| ecs-fargate | ECS, Fargate, ALB, RDS, ECR, IAM, Secrets Manager, VPC | private services, ALB path routing, private RDS, task roles, one-off migrations | [infra/ecs-fargate](infra/ecs-fargate) |
 
 ## Notes
 
