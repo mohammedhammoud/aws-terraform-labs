@@ -91,7 +91,11 @@ Health endpoints:
 
 Defined in `backend/.env.example`.
 
-- `DATABASE_URL` - PostgreSQL connection string
+- `DATABASE_URL` - PostgreSQL connection string for local development and Docker Compose
+- `DB_SECRET_ARN` - ECS only, RDS-managed secret ARN read by the backend task role
+- `DB_HOST` - ECS only, private RDS endpoint
+- `DB_PORT` - ECS only, private RDS port
+- `DB_NAME` - ECS only, PostgreSQL database name
 - `HOST` - backend bind address
 - `PORT` - backend port
 - `CORS_ORIGIN` - allowed browser origin list, comma-separated
@@ -131,6 +135,8 @@ npm run prisma:migrate:deploy --workspace @todo/backend
 npm run dev --workspace @todo/backend
 ```
 
+Local development uses `DATABASE_URL` directly.
+
 ### Frontend
 
 1. Copy `frontend/.env.example` to `frontend/.env`.
@@ -168,4 +174,31 @@ npm run format
 - Backend image: multi-stage Node build, non-root runtime user, stateless container startup, graceful shutdown support
 - Frontend image: multi-stage Vite build served by NGINX with runtime config injection
 - Compose waits for PostgreSQL health, runs migrations as a separate one-off container, then starts backend and frontend
+- On ECS, the backend uses its task role to read the RDS-managed secret from Secrets Manager and constructs the Prisma connection URL in memory
+- This lab uses the RDS-managed master credential to keep the scope focused on ECS, private networking, IAM task roles, Secrets Manager, and RDS integration. A production system should use a separate restricted application database role.
 - For ECS/production, run Prisma migrations as a separate deploy step before new tasks receive traffic
+
+## ECS Fargate Prisma migration flow
+
+Terraform defines a one-off migration task:
+
+- `aws_ecs_task_definition.backend_migration`
+- same backend image repo, execution role, and task role as the API task
+- same database inputs: `DB_SECRET_ARN`, `DB_HOST`, `DB_PORT`, `DB_NAME`
+- no port mappings
+- no ALB
+- no ECS service
+- command: `node backend/dist/scripts/migrate.js`
+
+The migration runner resolves the RDS secret with `resolveDatabaseUrl()`, injects `DATABASE_URL` only into the Prisma child process, forwards stdout/stderr, and exits with Prisma's exit code.
+
+### Recommended deploy order
+
+1. Build and push the backend image.
+2. Apply Terraform with `backend_migration_image_tag=<new>` and `backend_image_tag=<current>`.
+3. Run `./scripts/run-ecs-migration.sh`.
+4. Verify exit code `0`.
+5. Apply Terraform with `backend_migration_image_tag=<new>` and `backend_image_tag=<new>`.
+6. Wait for backend service stability.
+
+This two-step tag model prevents the backend service from switching to the new image before the migration succeeds.
