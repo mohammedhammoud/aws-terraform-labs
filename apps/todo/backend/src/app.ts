@@ -3,7 +3,7 @@ import Fastify from 'fastify';
 import { ZodError } from 'zod';
 
 import { corsOrigins, env } from './config/env.js';
-import { prisma } from './lib/prisma.js';
+import { getPrisma } from './lib/prisma.js';
 import { healthRoutes } from './routes/health.js';
 import { todoRoutes } from './routes/todos.js';
 import { NotFoundError } from './utils/errors.js';
@@ -18,7 +18,7 @@ export const buildApp = () => {
     origin: corsOrigins.includes('*') ? true : corsOrigins,
   });
   app.register(healthRoutes);
-  app.register(todoRoutes);
+  app.register(todoRoutes, { prefix: '/api' });
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof ZodError) {
@@ -37,7 +37,7 @@ export const buildApp = () => {
   });
 
   app.addHook('onClose', async () => {
-    await prisma.$disconnect();
+    await getPrisma().$disconnect();
   });
 
   return app;

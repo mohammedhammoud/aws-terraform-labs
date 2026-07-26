@@ -12,6 +12,7 @@
     "prisma:migrate:deploy": "prisma migrate deploy"
   },
   "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.1095.0",
     "@fastify/cors": "^9.0.1",
     "@prisma/client": "^5.20.0",
     "@todo/shared": "1.0.0",

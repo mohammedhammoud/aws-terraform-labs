@@ -1,7 +1,7 @@
 import { env } from './config/env.js';
-import { prisma } from './lib/prisma.js';
-import { markShuttingDown } from './lib/readiness.js';
 import { buildApp } from './app.js';
+import { initPrisma } from './lib/prisma.js';
+import { markShuttingDown } from './lib/readiness.js';
 
 const app = buildApp();
 
@@ -23,7 +23,6 @@ const shutdown = async (signal: NodeJS.Signals) => {
 
   try {
     await app.close();
-    await prisma.$disconnect();
     clearTimeout(forceShutdownTimer);
     app.log.info({ signal }, 'Shutdown complete');
     process.exit(0);
@@ -36,6 +35,7 @@ const shutdown = async (signal: NodeJS.Signals) => {
 
 const start = async () => {
   try {
+    await initPrisma();
     await app.listen({ host: env.HOST, port: env.PORT });
   } catch (error) {
     app.log.error(error);

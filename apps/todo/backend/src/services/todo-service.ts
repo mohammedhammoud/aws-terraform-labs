@@ -1,10 +1,11 @@
 import type { CreateTodoInput, UpdateTodoInput } from '@todo/shared';
 
-import { prisma } from '../lib/prisma.js';
+import { getPrisma } from '../lib/prisma.js';
 import { NotFoundError } from '../utils/errors.js';
 import { toTodoDto } from '../utils/serializers.js';
 
 export const listTodos = async () => {
+  const prisma = getPrisma();
   const todos = await prisma.todo.findMany({
     orderBy: {
       createdAt: 'desc',
@@ -15,6 +16,7 @@ export const listTodos = async () => {
 };
 
 export const getTodoById = async (id: number) => {
+  const prisma = getPrisma();
   const todo = await prisma.todo.findUnique({ where: { id } });
 
   if (!todo) {
@@ -25,6 +27,7 @@ export const getTodoById = async (id: number) => {
 };
 
 export const createTodo = async (input: CreateTodoInput) => {
+  const prisma = getPrisma();
   const todo = await prisma.todo.create({
     data: {
       title: input.title,
@@ -35,6 +38,7 @@ export const createTodo = async (input: CreateTodoInput) => {
 };
 
 export const updateTodo = async (id: number, input: UpdateTodoInput) => {
+  const prisma = getPrisma();
   const existing = await prisma.todo.findUnique({ where: { id } });
 
   if (!existing) {
@@ -53,6 +57,7 @@ export const updateTodo = async (id: number, input: UpdateTodoInput) => {
 };
 
 export const deleteTodo = async (id: number) => {
+  const prisma = getPrisma();
   const existing = await prisma.todo.findUnique({ where: { id } });
 
   if (!existing) {
