@@ -1,0 +1,122 @@
+name: ECS Fargate PR Check
+
+on:
+  pull_request:
+    paths:
+      - "infra/ecs-fargate/**"
+      - ".github/actions/terraform-plan/**"
+      - ".github/actions/terraform-pr-comment/**"
+      - ".github/workflows/ecs-fargate-pr-check.yml"
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+env:
+  AWS_REGION: eu-north-1
+  TERRAFORM_VERSION: "1.12.2"
+  TERRAFORM_DIRECTORY: infra/ecs-fargate/terraform
+  PROJECT_NAME: ecs-fargate
+
+jobs:
+  terraform-plan:
+    name: Terraform plan (ecs-fargate)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_TERRAFORM_PLAN_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: terraform-plan
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Terraform init
+        working-directory: ${{ env.TERRAFORM_DIRECTORY }}
+        run: terraform init -input=false
+
+      # Application images are deployed independently by CI/CD.
+      # Reuse the image tags stored in Terraform state so deployment-only
+      # changes do not appear as infrastructure drift in PR plans.
+      - name: Read image tags from Terraform state
+        id: terraform-state
+        working-directory: ${{ env.TERRAFORM_DIRECTORY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          terraform show -json > terraform-state.json
+
+          get_image_tag() {
+            local resource_address="$1"
+
+            local image
+            image="$(
+              jq -r \
+                --arg address "$resource_address" \
+                '
+                  .values.root_module.resources[]
+                  | select(.address == $address)
+                  | .values.container_definitions
+                  | fromjson
+                  | .[0].image
+                ' \
+                terraform-state.json
+            )"
+
+            if [[ -z "$image" || "$image" == "null" ]]; then
+              echo "Container image not found for: $resource_address" >&2
+              exit 1
+            fi
+
+            echo "${image##*:}"
+          }
+
+          BACKEND_IMAGE_TAG="$(
+            get_image_tag "aws_ecs_task_definition.backend"
+          )"
+
+          FRONTEND_IMAGE_TAG="$(
+            get_image_tag "aws_ecs_task_definition.frontend"
+          )"
+
+          echo "Backend Terraform image tag: $BACKEND_IMAGE_TAG"
+          echo "Frontend Terraform image tag: $FRONTEND_IMAGE_TAG"
+
+          echo "backend-image-tag=$BACKEND_IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          echo "frontend-image-tag=$FRONTEND_IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Terraform plan
+        id: terraform-plan
+        uses: ./.github/actions/terraform-plan
+        with:
+          working-directory: ${{ env.TERRAFORM_DIRECTORY }}
+          terraform-version: ${{ env.TERRAFORM_VERSION }}
+          terraform-vars: >-
+            {
+              "environment": "dev",
+              "backend_image_tag": "${{ steps.terraform-state.outputs.backend-image-tag }}",
+              "frontend_image_tag": "${{ steps.terraform-state.outputs.frontend-image-tag }}",
+              "backend_desired_count": 1,
+              "frontend_desired_count": 1
+            }
+
+      - name: Comment Terraform plan
+        if: always()
+        uses: ./.github/actions/terraform-pr-comment
+        with:
+          project-name: ${{ env.PROJECT_NAME }}
+          plan: ${{ steps.terraform-plan.outputs.plan }}
+          exit-code: ${{ steps.terraform-plan.outputs.exit-code }}
+          github-token: ${{ github.token }}
+          pr-number: ${{ github.event.pull_request.number }}
