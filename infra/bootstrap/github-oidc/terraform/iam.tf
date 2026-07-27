@@ -28,3 +28,8 @@ resource "aws_iam_role" "github_actions" {
   name               = "${local.name_prefix}-github-actions-${each.key}"
   assume_role_policy = data.aws_iam_policy_document.github[each.key].json
 }
+
+resource "aws_iam_role_policy_attachment" "github_actions_plan_readonly" {
+  role       = aws_iam_role.github_actions["plan"].name
+  policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
+}
