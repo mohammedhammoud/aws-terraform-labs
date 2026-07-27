@@ -57,27 +57,16 @@ jobs:
           get_image_tag() {
             local resource_address="$1"
 
-            local container_definitions
-            container_definitions="$(
+            local image
+            image="$(
               jq -r \
                 --arg address "$resource_address" \
                 '
                   .values.root_module.resources[]
                   | select(.address == $address)
-                  | .values.container_definitions
+                  | .values.container_definitions[0].image
                 ' \
                 terraform-state.json
-            )"
-
-            if [[ -z "$container_definitions" || "$container_definitions" == "null" ]]; then
-              echo "Resource not found in Terraform state: $resource_address" >&2
-              exit 1
-            fi
-
-            local image
-            image="$(
-              jq -r 'fromjson | .[0].image' \
-                <<< "$container_definitions"
             )"
 
             if [[ -z "$image" || "$image" == "null" ]]; then
