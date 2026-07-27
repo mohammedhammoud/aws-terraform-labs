@@ -70,14 +70,16 @@ runs:
           ' <<< "$TERRAFORM_VARS"
         )
 
+        set +e
         terraform plan \
           -input=false \
           -no-color \
           -detailed-exitcode \
           "${VAR_ARGS[@]}" \
           > terraform-plan.txt 2>&1
-
         EXIT_CODE=$?
+        set -e
+
         cat terraform-plan.txt
 
         {
