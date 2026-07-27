@@ -3,6 +3,7 @@ resource "aws_ecs_cluster" "main" {
 
   tags = {
     Name = "${local.name_prefix}-cluster"
+    Test = "pr-plan"
   }
 }
 
