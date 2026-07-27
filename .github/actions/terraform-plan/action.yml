@@ -1,0 +1,117 @@
+name: Terraform Plan
+description: Run Terraform format, validation, and plan for one Terraform project
+
+inputs:
+  working-directory:
+    description: Path to the Terraform directory
+    required: true
+
+  aws-role-arn:
+    description: AWS IAM role assumed through GitHub OIDC
+    required: true
+
+  aws-region:
+    description: AWS region
+    required: false
+    default: eu-north-1
+
+  terraform-version:
+    description: Terraform version
+    required: false
+    default: "1.12.2"
+
+  terraform-vars:
+    description: Terraform variables as a JSON object
+    required: false
+    default: "{}"
+
+outputs:
+  plan:
+    description: Terraform plan output
+    value: ${{ steps.plan.outputs.plan }}
+
+  exit-code:
+    description: Terraform plan exit code
+    value: ${{ steps.plan.outputs.exit-code }}
+
+  has-changes:
+    description: Whether Terraform detected changes
+    value: ${{ steps.plan.outputs.has-changes }}
+
+runs:
+  using: composite
+
+  steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ inputs.aws-role-arn }}
+        aws-region: ${{ inputs.aws-region }}
+        role-session-name: terraform-plan
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ inputs.terraform-version }}
+        terraform_wrapper: false
+
+    - name: Terraform format
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: terraform fmt -check -recursive
+
+    - name: Terraform init
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: terraform init -input=false
+
+    - name: Terraform validate
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: terraform validate
+
+    - name: Terraform plan
+      id: plan
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        TERRAFORM_VARS: ${{ inputs.terraform-vars }}
+      run: |
+        set +e
+
+        mapfile -t VAR_ARGS < <(
+          jq -r '
+            to_entries[]
+            | "-var=\(.key)=\(.value | tostring)"
+          ' <<< "$TERRAFORM_VARS"
+        )
+
+        terraform plan \
+          -input=false \
+          -no-color \
+          -detailed-exitcode \
+          "${VAR_ARGS[@]}" \
+          > terraform-plan.txt 2>&1
+
+        EXIT_CODE=$?
+        cat terraform-plan.txt
+
+        {
+          echo "plan<<EOF"
+          cat terraform-plan.txt
+          echo "EOF"
+          echo "exit-code=$EXIT_CODE"
+        } >> "$GITHUB_OUTPUT"
+
+        case "$EXIT_CODE" in
+          0)
+            echo "has-changes=false" >> "$GITHUB_OUTPUT"
+            ;;
+          2)
+            echo "has-changes=true" >> "$GITHUB_OUTPUT"
+            ;;
+          *)
+            echo "has-changes=false" >> "$GITHUB_OUTPUT"
+            exit "$EXIT_CODE"
+            ;;
+        esac

@@ -1,0 +1,112 @@
+name: PR Check
+
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+      - ".github/actions/terraform-plan/**"
+      - ".github/workflows/pr-check.yml"
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+jobs:
+  terraform-plan:
+    name: Terraform plan (${{ matrix.project.name }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - name: ecs-fargate
+            working-directory: infra/ecs-fargate/terraform
+            aws-region: eu-north-1
+            terraform-vars: >-
+              {
+                "environment": "dev",
+                "backend_image_tag": "76eefe5f95e0a699fd9c3923763200b1f955f48e",
+                "frontend_image_tag": "76eefe5f95e0a699fd9c3923763200b1f955f48e",
+                "backend_desired_count": 1,
+                "frontend_desired_count": 1
+              }
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Terraform plan
+        id: terraform-plan
+        uses: ./.github/actions/terraform-plan
+        with:
+          working-directory: ${{ matrix.project.working-directory }}
+          aws-role-arn: ${{ vars.AWS_TERRAFORM_PLAN_ROLE_ARN }}
+          aws-region: ${{ matrix.project.aws-region }}
+          terraform-vars: ${{ matrix.project.terraform-vars }}
+
+      - name: Create or update PR comment
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PROJECT_NAME: ${{ matrix.project.name }}
+          PLAN_OUTPUT: ${{ steps.terraform-plan.outputs.plan }}
+          PLAN_EXIT_CODE: ${{ steps.terraform-plan.outputs.exit-code }}
+          HAS_CHANGES: ${{ steps.terraform-plan.outputs.has-changes }}
+        run: |
+          MARKER="<!-- terraform-plan:${PROJECT_NAME} -->"
+
+          case "$PLAN_EXIT_CODE" in
+            0)
+              STATUS="✅ No changes"
+              ;;
+            2)
+              STATUS="⚠️ Changes detected"
+              ;;
+            *)
+              STATUS="❌ Plan failed"
+              ;;
+          esac
+
+          {
+            echo "$MARKER"
+            echo "## Terraform plan: \`$PROJECT_NAME\`"
+            echo
+            echo "**Status:** $STATUS"
+            echo
+            echo "<details>"
+            echo "<summary>Show plan</summary>"
+            echo
+            echo '```terraform'
+            echo "$PLAN_OUTPUT"
+            echo '```'
+            echo
+            echo "</details>"
+          } > comment.md
+
+          COMMENT_ID="$(
+            gh api \
+              "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+              --paginate \
+              --jq ".[] | select(.body | contains(\"${MARKER}\")) | .id" \
+              | head -n 1
+          )"
+
+          jq -n \
+            --rawfile body comment.md \
+            '{body: $body}' > payload.json
+
+          if [ -n "$COMMENT_ID" ]; then
+            gh api \
+              --method PATCH \
+              "repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" \
+              --input payload.json
+          else
+            gh api \
+              --method POST \
+              "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+              --input payload.json
+          fi
