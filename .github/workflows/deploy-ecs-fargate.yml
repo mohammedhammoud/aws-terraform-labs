@@ -14,8 +14,8 @@ env:
   BACKEND_ECR_REPOSITORY: 392938852724.dkr.ecr.eu-north-1.amazonaws.com/todo-platform-fargate-dev-backend
 
 jobs:
-  verify-oidc:
-    name: Verify AWS identity
+  deploy:
+    name: Deploy ECS Fargate
     runs-on: ubuntu-latest
 
     steps:
@@ -52,3 +52,147 @@ jobs:
             -t "${BACKEND_ECR_REPOSITORY}:${GITHUB_SHA}" \
             --push \
             apps/todo
+
+      - name: Download backend task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition todo-platform-fargate-dev-backend \
+            --query taskDefinition \
+            > backend-task-definition.json
+
+      - name: Download frontend task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition todo-platform-fargate-dev-frontend \
+            --query taskDefinition \
+            > frontend-task-definition.json
+
+      - name: Update backend image
+        run: |
+          jq \
+            --arg IMAGE "${BACKEND_ECR_REPOSITORY}:${GITHUB_SHA}" \
+            '.containerDefinitions[0].image = $IMAGE
+            | del(
+                .taskDefinitionArn,
+                .revision,
+                .status,
+                .requiresAttributes,
+                .compatibilities,
+                .registeredAt,
+                .registeredBy
+              )' \
+            backend-task-definition.json \
+            > backend-task-definition-new.json
+
+      - name: Update frontend image
+        run: |
+          jq \
+            --arg IMAGE "${FRONTEND_ECR_REPOSITORY}:${GITHUB_SHA}" \
+            '.containerDefinitions[0].image = $IMAGE
+            | del(
+                .taskDefinitionArn,
+                .revision,
+                .status,
+                .requiresAttributes,
+                .compatibilities,
+                .registeredAt,
+                .registeredBy
+              )' \
+            frontend-task-definition.json \
+            > frontend-task-definition-new.json
+
+      - name: Register backend task definition
+        id: register-backend
+        run: |
+          BACKEND_TASK_DEFINITION_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://backend-task-definition-new.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+
+          echo "arn=$BACKEND_TASK_DEFINITION_ARN" >> "$GITHUB_OUTPUT"
+
+      - name: Register frontend task definition
+        id: register-frontend
+        run: |
+          FRONTEND_TASK_DEFINITION_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://frontend-task-definition-new.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+
+          echo "arn=$FRONTEND_TASK_DEFINITION_ARN" >> "$GITHUB_OUTPUT"
+
+      - name: Download migration task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition todo-platform-fargate-dev-backend-migration \
+            --query taskDefinition \
+            > migration-task-definition.json
+
+      - name: Update and register migration task definition
+        id: register-migration
+        run: |
+          jq \
+            --arg IMAGE "${BACKEND_ECR_REPOSITORY}:${GITHUB_SHA}" \
+            '.containerDefinitions[0].image = $IMAGE
+            | del(
+                .taskDefinitionArn,
+                .revision,
+                .status,
+                .requiresAttributes,
+                .compatibilities,
+                .registeredAt,
+                .registeredBy
+              )' \
+            migration-task-definition.json \
+            > migration-task-definition-new.json
+
+          ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://migration-task-definition-new.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+
+          echo "arn=$ARN" >> "$GITHUB_OUTPUT"
+
+      - name: Run database migration
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster todo-platform-fargate-dev-cluster \
+            --launch-type FARGATE \
+            --task-definition "${{ steps.register-migration.outputs.arn }}" \
+            --network-configuration "awsvpcConfiguration={subnets=[subnet-0c375d8797af11e25,subnet-0af10bf5a282390a8],securityGroups=[sg-0e5ccb2bcd68cde70],assignPublicIp=DISABLED}" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+
+          aws ecs wait tasks-stopped \
+            --cluster todo-platform-fargate-dev-cluster \
+            --tasks "$TASK_ARN"
+
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster todo-platform-fargate-dev-cluster \
+            --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+
+          test "$EXIT_CODE" = "0"
+
+      - name: Update backend service
+        run: |
+          aws ecs update-service \
+            --cluster todo-platform-fargate-dev-cluster \
+            --service todo-platform-fargate-dev-service-backend \
+            --task-definition "${{ steps.register-backend.outputs.arn }}"
+
+      - name: Update frontend service
+        run: |
+          aws ecs update-service \
+            --cluster todo-platform-fargate-dev-cluster \
+            --service todo-platform-fargate-dev-service-frontend \
+            --task-definition "${{ steps.register-frontend.outputs.arn }}"
+
+      - name: Wait for ECS services to become stable
+        run: |
+          aws ecs wait services-stable \
+            --cluster todo-platform-fargate-dev-cluster \
+            --services \
+              todo-platform-fargate-dev-service-backend \
+              todo-platform-fargate-dev-service-frontend
