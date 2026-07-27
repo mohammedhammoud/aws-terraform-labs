@@ -15,9 +15,7 @@ permissions:
 
 env:
   AWS_REGION: eu-north-1
-  ECS_CLUSTER: todo-platform-fargate-dev-cluster
-  BACKEND_SERVICE: todo-platform-fargate-dev-service-backend
-  FRONTEND_SERVICE: todo-platform-fargate-dev-service-frontend
+  TERRAFORM_VERSION: "1.12.2"
   TERRAFORM_DIRECTORY: infra/ecs-fargate/terraform
   PROJECT_NAME: ecs-fargate
 
@@ -37,50 +35,69 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: terraform-plan
 
-      - name: Read active ECS image tags
-        id: ecs-images
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Terraform init
+        working-directory: ${{ env.TERRAFORM_DIRECTORY }}
+        run: terraform init -input=false
+
+      - name: Read image tags from Terraform state
+        id: terraform-state
+        working-directory: ${{ env.TERRAFORM_DIRECTORY }}
         shell: bash
         run: |
           set -euo pipefail
 
-          get_active_image_tag() {
-            local service="$1"
+          terraform show -json > terraform-state.json
 
-            local task_definition
-            task_definition="$(
-              aws ecs describe-services \
-                --cluster "$ECS_CLUSTER" \
-                --services "$service" \
-                --query 'services[0].taskDefinition' \
-                --output text
+          get_image_tag() {
+            local resource_address="$1"
+
+            local container_definitions
+            container_definitions="$(
+              jq -r \
+                --arg address "$resource_address" \
+                '
+                  .values.root_module.resources[]
+                  | select(.address == $address)
+                  | .values.container_definitions
+                ' \
+                terraform-state.json
             )"
 
-            if [[ -z "$task_definition" || "$task_definition" == "None" ]]; then
-              echo "No active task definition found for service: $service" >&2
+            if [[ -z "$container_definitions" || "$container_definitions" == "null" ]]; then
+              echo "Resource not found in Terraform state: $resource_address" >&2
               exit 1
             fi
 
             local image
             image="$(
-              aws ecs describe-task-definition \
-                --task-definition "$task_definition" \
-                --query 'taskDefinition.containerDefinitions[0].image' \
-                --output text
+              jq -r 'fromjson | .[0].image' \
+                <<< "$container_definitions"
             )"
 
-            if [[ -z "$image" || "$image" == "None" ]]; then
-              echo "No container image found for service: $service" >&2
+            if [[ -z "$image" || "$image" == "null" ]]; then
+              echo "Container image not found for: $resource_address" >&2
               exit 1
             fi
 
             echo "${image##*:}"
           }
 
-          BACKEND_IMAGE_TAG="$(get_active_image_tag "$BACKEND_SERVICE")"
-          FRONTEND_IMAGE_TAG="$(get_active_image_tag "$FRONTEND_SERVICE")"
+          BACKEND_IMAGE_TAG="$(
+            get_image_tag "aws_ecs_task_definition.backend"
+          )"
 
-          echo "Backend image tag: $BACKEND_IMAGE_TAG"
-          echo "Frontend image tag: $FRONTEND_IMAGE_TAG"
+          FRONTEND_IMAGE_TAG="$(
+            get_image_tag "aws_ecs_task_definition.frontend"
+          )"
+
+          echo "Backend Terraform image tag: $BACKEND_IMAGE_TAG"
+          echo "Frontend Terraform image tag: $FRONTEND_IMAGE_TAG"
 
           echo "backend-image-tag=$BACKEND_IMAGE_TAG" >> "$GITHUB_OUTPUT"
           echo "frontend-image-tag=$FRONTEND_IMAGE_TAG" >> "$GITHUB_OUTPUT"
@@ -90,11 +107,12 @@ jobs:
         uses: ./.github/actions/terraform-plan
         with:
           working-directory: ${{ env.TERRAFORM_DIRECTORY }}
+          terraform-version: ${{ env.TERRAFORM_VERSION }}
           terraform-vars: >-
             {
               "environment": "dev",
-              "backend_image_tag": "${{ steps.ecs-images.outputs.backend-image-tag }}",
-              "frontend_image_tag": "${{ steps.ecs-images.outputs.frontend-image-tag }}",
+              "backend_image_tag": "${{ steps.terraform-state.outputs.backend-image-tag }}",
+              "frontend_image_tag": "${{ steps.terraform-state.outputs.frontend-image-tag }}",
               "backend_desired_count": 1,
               "frontend_desired_count": 1
             }
