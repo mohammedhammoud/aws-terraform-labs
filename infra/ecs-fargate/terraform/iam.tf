@@ -53,29 +53,6 @@ resource "aws_iam_role_policy" "backend_read_db_secret" {
   })
 }
 
-data "aws_iam_policy_document" "oidc" {
-  statement {
-    actions = ["sts:AssumeRoleWithWebIdentity"]
-
-    principals {
-      type        = "Federated"
-      identifiers = [aws_iam_openid_connect_provider.github.arn]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:aud"
-      values   = ["sts.amazonaws.com"]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repository}:ref:refs/heads/${var.github_branch}"]
-    }
-  }
-}
-
 data "aws_iam_policy_document" "github_actions_deploy" {
   statement {
     actions = [
@@ -132,12 +109,7 @@ resource "aws_iam_policy" "github_actions_deploy" {
   policy = data.aws_iam_policy_document.github_actions_deploy.json
 }
 
-resource "aws_iam_role" "github_actions" {
-  name               = "${local.name_prefix}-github-actions"
-  assume_role_policy = data.aws_iam_policy_document.oidc.json
-}
-
 resource "aws_iam_role_policy_attachment" "github_actions_deploy" {
-  role       = aws_iam_role.github_actions.name
+  role       = data.aws_iam_role.github_actions_apply.name
   policy_arn = aws_iam_policy.github_actions_deploy.arn
 }

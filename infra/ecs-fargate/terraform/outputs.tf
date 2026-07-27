@@ -33,7 +33,3 @@ output "frontend_ecs_service_name" {
 output "backend_ecs_service_name" {
   value = aws_ecs_service.backend.name
 }
-
-output "github_actions_role_arn" {
-  value = aws_iam_role.github_actions.arn
-}

@@ -159,6 +159,10 @@ resource "aws_ecs_service" "backend" {
     container_port   = var.backend_port
   }
 
+  lifecycle {
+    ignore_changes = [task_definition]
+  }
+
   depends_on = [
     aws_lb_listener_rule.backend,
     aws_iam_role_policy_attachment.ecs_task_execution,
@@ -187,6 +191,10 @@ resource "aws_ecs_service" "frontend" {
     target_group_arn = aws_lb_target_group.frontend.arn
     container_name   = "${local.name_prefix}-frontend-container"
     container_port   = var.frontend_port
+  }
+
+  lifecycle {
+    ignore_changes = [task_definition]
   }
 
   depends_on = [
