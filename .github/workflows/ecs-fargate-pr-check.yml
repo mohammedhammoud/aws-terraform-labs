@@ -45,6 +45,9 @@ jobs:
         working-directory: ${{ env.TERRAFORM_DIRECTORY }}
         run: terraform init -input=false
 
+      # Application images are deployed independently by CI/CD.
+      # Reuse the image tags stored in Terraform state so deployment-only
+      # changes do not appear as infrastructure drift in PR plans.
       - name: Read image tags from Terraform state
         id: terraform-state
         working-directory: ${{ env.TERRAFORM_DIRECTORY }}
