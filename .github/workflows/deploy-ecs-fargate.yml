@@ -10,6 +10,8 @@ permissions:
 env:
   AWS_REGION: eu-north-1
   AWS_ROLE_ARN: arn:aws:iam::392938852724:role/todo-platform-fargate-dev-github-actions
+  FRONTEND_ECR_REPOSITORY: 392938852724.dkr.ecr.eu-north-1.amazonaws.com/todo-platform-fargate-dev-frontend
+  BACKEND_ECR_REPOSITORY: 392938852724.dkr.ecr.eu-north-1.amazonaws.com/todo-platform-fargate-dev-backend
 
 jobs:
   verify-oidc:
@@ -17,6 +19,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -26,3 +31,24 @@ jobs:
 
       - name: Verify assumed identity
         run: aws sts get-caller-identity
+
+      - name: Log in to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push frontend image
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            -f apps/todo/frontend/Dockerfile \
+            -t "${FRONTEND_ECR_REPOSITORY}:${GITHUB_SHA}" \
+            --push \
+            apps/todo
+
+      - name: Build and push backend image
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            -f apps/todo/backend/Dockerfile \
+            -t "${BACKEND_ECR_REPOSITORY}:${GITHUB_SHA}" \
+            --push \
+            apps/todo
