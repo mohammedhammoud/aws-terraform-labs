@@ -116,7 +116,7 @@ variable "db_instance_class" {
 
 variable "github_repository" {
   type    = string
-  default = "mohammedhammoud/aws-terraform-labs"
+  default = "mohammedhammoud@5408383/aws-terraform-labs@1293580188"
 }
 
 variable "github_branch" {
