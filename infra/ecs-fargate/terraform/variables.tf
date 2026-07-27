@@ -113,3 +113,13 @@ variable "db_instance_class" {
   type    = string
   default = "db.t3.micro"
 }
+
+variable "github_repository" {
+  type    = string
+  default = "mohammedhammoud/aws-terraform-labs"
+}
+
+variable "github_branch" {
+  type    = string
+  default = "master"
+}

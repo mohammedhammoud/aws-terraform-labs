@@ -52,3 +52,90 @@ resource "aws_iam_role_policy" "backend_read_db_secret" {
     ]
   })
 }
+
+data "aws_iam_policy_document" "oidc" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["repo:${var.github_repository}:ref:refs/heads/${var.github_branch}"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "github_actions_deploy" {
+  statement {
+    actions = [
+      "ecs:RegisterTaskDefinition",
+      "ecs:DescribeTaskDefinition",
+      "ecs:RunTask",
+      "ecs:DescribeTasks",
+      "ecs:UpdateService",
+      "ecs:DescribeServices",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    actions = ["iam:PassRole"]
+
+    resources = [
+      aws_iam_role.ecs_task_execution.arn,
+      aws_iam_role.backend_task.arn,
+    ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["ecs-tasks.amazonaws.com"]
+    }
+  }
+
+  statement {
+    actions   = ["ecr:GetAuthorizationToken"]
+    resources = ["*"]
+  }
+
+  statement {
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:CompleteLayerUpload",
+      "ecr:InitiateLayerUpload",
+      "ecr:PutImage",
+      "ecr:UploadLayerPart",
+    ]
+
+    resources = [
+      aws_ecr_repository.frontend.arn,
+      aws_ecr_repository.backend.arn,
+    ]
+  }
+}
+
+resource "aws_iam_policy" "github_actions_deploy" {
+  name   = "${local.name_prefix}-github-actions-deploy"
+  policy = data.aws_iam_policy_document.github_actions_deploy.json
+}
+
+resource "aws_iam_role" "github_actions" {
+  name               = "${local.name_prefix}-github-actions"
+  assume_role_policy = data.aws_iam_policy_document.oidc.json
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_deploy" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = aws_iam_policy.github_actions_deploy.arn
+}

@@ -1,0 +1,28 @@
+name: Deploy ECS Fargate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-north-1
+  AWS_ROLE_ARN: arn:aws:iam::392938852724:role/todo-platform-fargate-dev-github-actions
+
+jobs:
+  verify-oidc:
+    name: Verify AWS identity
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: ecs-fargate-deploy
+
+      - name: Verify assumed identity
+        run: aws sts get-caller-identity
