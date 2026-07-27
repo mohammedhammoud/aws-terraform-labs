@@ -1,0 +1,94 @@
+name: Terraform PR Comment
+description: Create or update a pull request comment with Terraform plan output
+
+inputs:
+  project-name:
+    description: Terraform project name used in the comment title and marker
+    required: true
+
+  plan:
+    description: Terraform plan output
+    required: false
+    default: ""
+
+  exit-code:
+    description: Terraform plan exit code
+    required: false
+    default: "1"
+
+  github-token:
+    description: GitHub token used to create or update the PR comment
+    required: true
+
+  pr-number:
+    description: Pull request number
+    required: true
+
+runs:
+  using: composite
+
+  steps:
+    - name: Create or update Terraform plan comment
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+        PROJECT_NAME: ${{ inputs.project-name }}
+        PLAN_OUTPUT: ${{ inputs.plan }}
+        PLAN_EXIT_CODE: ${{ inputs.exit-code }}
+      run: |
+        set -euo pipefail
+
+        MARKER="<!-- terraform-plan:${PROJECT_NAME} -->"
+
+        case "$PLAN_EXIT_CODE" in
+          0)
+            STATUS="✅ No changes"
+            ;;
+          2)
+            STATUS="⚠️ Changes detected"
+            ;;
+          *)
+            STATUS="❌ Plan failed"
+            ;;
+        esac
+
+        {
+          echo "$MARKER"
+          echo "## Terraform plan: \`$PROJECT_NAME\`"
+          echo
+          echo "**Status:** $STATUS"
+          echo
+          echo "<details>"
+          echo "<summary>Show plan</summary>"
+          echo
+          echo '```terraform'
+          echo "$PLAN_OUTPUT"
+          echo '```'
+          echo
+          echo "</details>"
+        } > comment.md
+
+        COMMENT_ID="$(
+          gh api \
+            "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            --paginate \
+            --jq ".[] | select(.body | contains(\"${MARKER}\")) | .id" \
+            | head -n 1
+        )"
+
+        jq -n \
+          --rawfile body comment.md \
+          '{body: $body}' > payload.json
+
+        if [[ -n "$COMMENT_ID" ]]; then
+          gh api \
+            --method PATCH \
+            "repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" \
+            --input payload.json
+        else
+          gh api \
+            --method POST \
+            "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            --input payload.json
+        fi

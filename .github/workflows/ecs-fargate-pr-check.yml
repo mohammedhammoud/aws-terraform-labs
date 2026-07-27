@@ -1,0 +1,110 @@
+name: ECS Fargate PR Check
+
+on:
+  pull_request:
+    paths:
+      - "infra/ecs-fargate/**"
+      - ".github/actions/terraform-plan/**"
+      - ".github/actions/terraform-pr-comment/**"
+      - ".github/workflows/ecs-fargate-pr-check.yml"
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+env:
+  AWS_REGION: eu-north-1
+  ECS_CLUSTER: todo-platform-fargate-dev-cluster
+  BACKEND_SERVICE: todo-platform-fargate-dev-service-backend
+  FRONTEND_SERVICE: todo-platform-fargate-dev-service-frontend
+  TERRAFORM_DIRECTORY: infra/ecs-fargate/terraform
+  PROJECT_NAME: ecs-fargate
+
+jobs:
+  terraform-plan:
+    name: Terraform plan (ecs-fargate)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_TERRAFORM_PLAN_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: terraform-plan
+
+      - name: Read active ECS image tags
+        id: ecs-images
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          get_active_image_tag() {
+            local service="$1"
+
+            local task_definition
+            task_definition="$(
+              aws ecs describe-services \
+                --cluster "$ECS_CLUSTER" \
+                --services "$service" \
+                --query 'services[0].taskDefinition' \
+                --output text
+            )"
+
+            if [[ -z "$task_definition" || "$task_definition" == "None" ]]; then
+              echo "No active task definition found for service: $service" >&2
+              exit 1
+            fi
+
+            local image
+            image="$(
+              aws ecs describe-task-definition \
+                --task-definition "$task_definition" \
+                --query 'taskDefinition.containerDefinitions[0].image' \
+                --output text
+            )"
+
+            if [[ -z "$image" || "$image" == "None" ]]; then
+              echo "No container image found for service: $service" >&2
+              exit 1
+            fi
+
+            echo "${image##*:}"
+          }
+
+          BACKEND_IMAGE_TAG="$(get_active_image_tag "$BACKEND_SERVICE")"
+          FRONTEND_IMAGE_TAG="$(get_active_image_tag "$FRONTEND_SERVICE")"
+
+          echo "Backend image tag: $BACKEND_IMAGE_TAG"
+          echo "Frontend image tag: $FRONTEND_IMAGE_TAG"
+
+          echo "backend-image-tag=$BACKEND_IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          echo "frontend-image-tag=$FRONTEND_IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Terraform plan
+        id: terraform-plan
+        uses: ./.github/actions/terraform-plan
+        with:
+          working-directory: ${{ env.TERRAFORM_DIRECTORY }}
+          terraform-vars: >-
+            {
+              "environment": "dev",
+              "backend_image_tag": "${{ steps.ecs-images.outputs.backend-image-tag }}",
+              "frontend_image_tag": "${{ steps.ecs-images.outputs.frontend-image-tag }}",
+              "backend_desired_count": 1,
+              "frontend_desired_count": 1
+            }
+
+      - name: Comment Terraform plan
+        if: always()
+        uses: ./.github/actions/terraform-pr-comment
+        with:
+          project-name: ${{ env.PROJECT_NAME }}
+          plan: ${{ steps.terraform-plan.outputs.plan }}
+          exit-code: ${{ steps.terraform-plan.outputs.exit-code }}
+          github-token: ${{ github.token }}
+          pr-number: ${{ github.event.pull_request.number }}
