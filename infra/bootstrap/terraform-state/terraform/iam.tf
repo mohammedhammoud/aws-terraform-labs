@@ -27,8 +27,23 @@ resource "aws_iam_role_policy_attachment" "github_actions_terraform_apply" {
 
 data "aws_iam_policy_document" "github_actions_terraform_plan" {
   statement {
-    actions   = ["s3:GetObject"]
-    resources = ["${aws_s3_bucket.main.arn}/*"]
+    actions = [
+      "s3:GetObject",
+    ]
+    resources = [
+      "${aws_s3_bucket.main.arn}/*"
+    ]
+  }
+  statement {
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+    ]
+
+    resources = [
+      "${aws_s3_bucket.main.arn}/*.tflock"
+    ]
   }
   statement {
     actions   = ["s3:ListBucket"]
