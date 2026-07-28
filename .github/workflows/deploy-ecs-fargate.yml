@@ -9,9 +9,8 @@ permissions:
 
 env:
   AWS_REGION: eu-north-1
-  AWS_ROLE_ARN: arn:aws:iam::392938852724:role/todo-platform-fargate-dev-github-actions
-  FRONTEND_ECR_REPOSITORY: 392938852724.dkr.ecr.eu-north-1.amazonaws.com/todo-platform-fargate-dev-frontend
-  BACKEND_ECR_REPOSITORY: 392938852724.dkr.ecr.eu-north-1.amazonaws.com/todo-platform-fargate-dev-backend
+  TERRAFORM_VERSION: "1.12.2"
+  TERRAFORM_DIRECTORY: infra/ecs-fargate/terraform
 
 jobs:
   deploy:
@@ -25,174 +24,344 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-to-assume: ${{ vars.AWS_TERRAFORM_APPLY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: ecs-fargate-deploy
 
       - name: Verify assumed identity
         run: aws sts get-caller-identity
 
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Terraform init
+        working-directory: ${{ env.TERRAFORM_DIRECTORY }}
+        run: terraform init -input=false
+
+      - name: Read Terraform outputs
+        id: terraform-outputs
+        working-directory: ${{ env.TERRAFORM_DIRECTORY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          terraform output -json > terraform-outputs.json
+
+          get_output() {
+            local name="$1"
+
+            local value
+            value="$(
+              jq -r \
+                --arg name "$name" \
+                '.[$name].value // empty' \
+                terraform-outputs.json
+            )"
+
+            if [[ -z "$value" || "$value" == "null" ]]; then
+              echo "Terraform output not found: $name" >&2
+              exit 1
+            fi
+
+            echo "$value"
+          }
+
+          ECS_CLUSTER="$(get_output "ecs_cluster_name")"
+          BACKEND_SERVICE="$(get_output "backend_ecs_service_name")"
+          FRONTEND_SERVICE="$(get_output "frontend_ecs_service_name")"
+          BACKEND_ECR_REPOSITORY="$(get_output "backend_ecr_repository_url")"
+          FRONTEND_ECR_REPOSITORY="$(get_output "frontend_ecr_repository_url")"
+          BACKEND_SECURITY_GROUP_ID="$(get_output "backend_security_group_id")"
+          MIGRATION_TASK_DEFINITION_ARN="$(
+            get_output "backend_migration_task_definition_arn"
+          )"
+
+          PRIVATE_SUBNET_IDS="$(
+            jq -r \
+              '.private_subnet_ids.value | join(",")' \
+              terraform-outputs.json
+          )"
+
+          if [[ -z "$PRIVATE_SUBNET_IDS" ]]; then
+            echo "No private subnet IDs found in Terraform outputs" >&2
+            exit 1
+          fi
+
+          echo "ecs-cluster=$ECS_CLUSTER" >> "$GITHUB_OUTPUT"
+          echo "backend-service=$BACKEND_SERVICE" >> "$GITHUB_OUTPUT"
+          echo "frontend-service=$FRONTEND_SERVICE" >> "$GITHUB_OUTPUT"
+          echo "backend-ecr-repository=$BACKEND_ECR_REPOSITORY" >> "$GITHUB_OUTPUT"
+          echo "frontend-ecr-repository=$FRONTEND_ECR_REPOSITORY" >> "$GITHUB_OUTPUT"
+          echo "backend-security-group-id=$BACKEND_SECURITY_GROUP_ID" >> "$GITHUB_OUTPUT"
+          echo "private-subnet-ids=$PRIVATE_SUBNET_IDS" >> "$GITHUB_OUTPUT"
+          echo "migration-task-definition-arn=$MIGRATION_TASK_DEFINITION_ARN" >> "$GITHUB_OUTPUT"
+
       - name: Log in to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build and push frontend image
+        env:
+          ECR_REPOSITORY: ${{ steps.terraform-outputs.outputs.frontend-ecr-repository }}
         run: |
           docker buildx build \
             --platform linux/amd64 \
             -f apps/todo/frontend/Dockerfile \
-            -t "${FRONTEND_ECR_REPOSITORY}:${GITHUB_SHA}" \
+            -t "${ECR_REPOSITORY}:${GITHUB_SHA}" \
             --push \
             apps/todo
 
       - name: Build and push backend image
+        env:
+          ECR_REPOSITORY: ${{ steps.terraform-outputs.outputs.backend-ecr-repository }}
         run: |
           docker buildx build \
             --platform linux/amd64 \
             -f apps/todo/backend/Dockerfile \
-            -t "${BACKEND_ECR_REPOSITORY}:${GITHUB_SHA}" \
+            -t "${ECR_REPOSITORY}:${GITHUB_SHA}" \
             --push \
             apps/todo
+
+      - name: Find current service task definitions
+        id: current-task-definitions
+        env:
+          ECS_CLUSTER: ${{ steps.terraform-outputs.outputs.ecs-cluster }}
+          BACKEND_SERVICE: ${{ steps.terraform-outputs.outputs.backend-service }}
+          FRONTEND_SERVICE: ${{ steps.terraform-outputs.outputs.frontend-service }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BACKEND_TASK_DEFINITION="$(
+            aws ecs describe-services \
+              --cluster "$ECS_CLUSTER" \
+              --services "$BACKEND_SERVICE" \
+              --query 'services[0].taskDefinition' \
+              --output text
+          )"
+
+          FRONTEND_TASK_DEFINITION="$(
+            aws ecs describe-services \
+              --cluster "$ECS_CLUSTER" \
+              --services "$FRONTEND_SERVICE" \
+              --query 'services[0].taskDefinition' \
+              --output text
+          )"
+
+          if [[ -z "$BACKEND_TASK_DEFINITION" || "$BACKEND_TASK_DEFINITION" == "None" ]]; then
+            echo "Backend task definition not found" >&2
+            exit 1
+          fi
+
+          if [[ -z "$FRONTEND_TASK_DEFINITION" || "$FRONTEND_TASK_DEFINITION" == "None" ]]; then
+            echo "Frontend task definition not found" >&2
+            exit 1
+          fi
+
+          echo "backend=$BACKEND_TASK_DEFINITION" >> "$GITHUB_OUTPUT"
+          echo "frontend=$FRONTEND_TASK_DEFINITION" >> "$GITHUB_OUTPUT"
 
       - name: Download backend task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition todo-platform-fargate-dev-backend \
+            --task-definition "${{ steps.current-task-definitions.outputs.backend }}" \
             --query taskDefinition \
             > backend-task-definition.json
 
       - name: Download frontend task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition todo-platform-fargate-dev-frontend \
+            --task-definition "${{ steps.current-task-definitions.outputs.frontend }}" \
             --query taskDefinition \
             > frontend-task-definition.json
 
       - name: Update backend image
+        env:
+          ECR_REPOSITORY: ${{ steps.terraform-outputs.outputs.backend-ecr-repository }}
         run: |
           jq \
-            --arg IMAGE "${BACKEND_ECR_REPOSITORY}:${GITHUB_SHA}" \
-            '.containerDefinitions[0].image = $IMAGE
-            | del(
-                .taskDefinitionArn,
-                .revision,
-                .status,
-                .requiresAttributes,
-                .compatibilities,
-                .registeredAt,
-                .registeredBy
-              )' \
+            --arg IMAGE "${ECR_REPOSITORY}:${GITHUB_SHA}" \
+            '
+              .containerDefinitions[0].image = $IMAGE
+              | del(
+                  .taskDefinitionArn,
+                  .revision,
+                  .status,
+                  .requiresAttributes,
+                  .compatibilities,
+                  .registeredAt,
+                  .registeredBy
+                )
+            ' \
             backend-task-definition.json \
             > backend-task-definition-new.json
 
       - name: Update frontend image
+        env:
+          ECR_REPOSITORY: ${{ steps.terraform-outputs.outputs.frontend-ecr-repository }}
         run: |
           jq \
-            --arg IMAGE "${FRONTEND_ECR_REPOSITORY}:${GITHUB_SHA}" \
-            '.containerDefinitions[0].image = $IMAGE
-            | del(
-                .taskDefinitionArn,
-                .revision,
-                .status,
-                .requiresAttributes,
-                .compatibilities,
-                .registeredAt,
-                .registeredBy
-              )' \
+            --arg IMAGE "${ECR_REPOSITORY}:${GITHUB_SHA}" \
+            '
+              .containerDefinitions[0].image = $IMAGE
+              | del(
+                  .taskDefinitionArn,
+                  .revision,
+                  .status,
+                  .requiresAttributes,
+                  .compatibilities,
+                  .registeredAt,
+                  .registeredBy
+                )
+            ' \
             frontend-task-definition.json \
             > frontend-task-definition-new.json
 
       - name: Register backend task definition
         id: register-backend
         run: |
-          BACKEND_TASK_DEFINITION_ARN=$(aws ecs register-task-definition \
-            --cli-input-json file://backend-task-definition-new.json \
-            --query 'taskDefinition.taskDefinitionArn' \
-            --output text)
+          set -euo pipefail
 
-          echo "arn=$BACKEND_TASK_DEFINITION_ARN" >> "$GITHUB_OUTPUT"
+          ARN="$(
+            aws ecs register-task-definition \
+              --cli-input-json file://backend-task-definition-new.json \
+              --query 'taskDefinition.taskDefinitionArn' \
+              --output text
+          )"
+
+          echo "arn=$ARN" >> "$GITHUB_OUTPUT"
 
       - name: Register frontend task definition
         id: register-frontend
         run: |
-          FRONTEND_TASK_DEFINITION_ARN=$(aws ecs register-task-definition \
-            --cli-input-json file://frontend-task-definition-new.json \
-            --query 'taskDefinition.taskDefinitionArn' \
-            --output text)
+          set -euo pipefail
 
-          echo "arn=$FRONTEND_TASK_DEFINITION_ARN" >> "$GITHUB_OUTPUT"
+          ARN="$(
+            aws ecs register-task-definition \
+              --cli-input-json file://frontend-task-definition-new.json \
+              --query 'taskDefinition.taskDefinitionArn' \
+              --output text
+          )"
+
+          echo "arn=$ARN" >> "$GITHUB_OUTPUT"
 
       - name: Download migration task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition todo-platform-fargate-dev-backend-migration \
+            --task-definition "${{ steps.terraform-outputs.outputs.migration-task-definition-arn }}" \
             --query taskDefinition \
             > migration-task-definition.json
 
       - name: Update and register migration task definition
         id: register-migration
+        env:
+          ECR_REPOSITORY: ${{ steps.terraform-outputs.outputs.backend-ecr-repository }}
         run: |
+          set -euo pipefail
+
           jq \
-            --arg IMAGE "${BACKEND_ECR_REPOSITORY}:${GITHUB_SHA}" \
-            '.containerDefinitions[0].image = $IMAGE
-            | del(
-                .taskDefinitionArn,
-                .revision,
-                .status,
-                .requiresAttributes,
-                .compatibilities,
-                .registeredAt,
-                .registeredBy
-              )' \
+            --arg IMAGE "${ECR_REPOSITORY}:${GITHUB_SHA}" \
+            '
+              .containerDefinitions[0].image = $IMAGE
+              | del(
+                  .taskDefinitionArn,
+                  .revision,
+                  .status,
+                  .requiresAttributes,
+                  .compatibilities,
+                  .registeredAt,
+                  .registeredBy
+                )
+            ' \
             migration-task-definition.json \
             > migration-task-definition-new.json
 
-          ARN=$(aws ecs register-task-definition \
-            --cli-input-json file://migration-task-definition-new.json \
-            --query 'taskDefinition.taskDefinitionArn' \
-            --output text)
+          ARN="$(
+            aws ecs register-task-definition \
+              --cli-input-json file://migration-task-definition-new.json \
+              --query 'taskDefinition.taskDefinitionArn' \
+              --output text
+          )"
 
           echo "arn=$ARN" >> "$GITHUB_OUTPUT"
 
       - name: Run database migration
+        env:
+          ECS_CLUSTER: ${{ steps.terraform-outputs.outputs.ecs-cluster }}
+          PRIVATE_SUBNET_IDS: ${{ steps.terraform-outputs.outputs.private-subnet-ids }}
+          BACKEND_SECURITY_GROUP_ID: ${{ steps.terraform-outputs.outputs.backend-security-group-id }}
+          MIGRATION_TASK_DEFINITION: ${{ steps.register-migration.outputs.arn }}
+        shell: bash
         run: |
-          TASK_ARN=$(aws ecs run-task \
-            --cluster todo-platform-fargate-dev-cluster \
-            --launch-type FARGATE \
-            --task-definition "${{ steps.register-migration.outputs.arn }}" \
-            --network-configuration "awsvpcConfiguration={subnets=[subnet-0c375d8797af11e25,subnet-0af10bf5a282390a8],securityGroups=[sg-0e5ccb2bcd68cde70],assignPublicIp=DISABLED}" \
-            --query 'tasks[0].taskArn' \
-            --output text)
+          set -euo pipefail
+
+          TASK_ARN="$(
+            aws ecs run-task \
+              --cluster "$ECS_CLUSTER" \
+              --launch-type FARGATE \
+              --task-definition "$MIGRATION_TASK_DEFINITION" \
+              --network-configuration \
+                "awsvpcConfiguration={subnets=[$PRIVATE_SUBNET_IDS],securityGroups=[$BACKEND_SECURITY_GROUP_ID],assignPublicIp=DISABLED}" \
+              --query 'tasks[0].taskArn' \
+              --output text
+          )"
+
+          if [[ -z "$TASK_ARN" || "$TASK_ARN" == "None" ]]; then
+            echo "Migration task failed to start" >&2
+            exit 1
+          fi
 
           aws ecs wait tasks-stopped \
-            --cluster todo-platform-fargate-dev-cluster \
+            --cluster "$ECS_CLUSTER" \
             --tasks "$TASK_ARN"
 
-          EXIT_CODE=$(aws ecs describe-tasks \
-            --cluster todo-platform-fargate-dev-cluster \
-            --tasks "$TASK_ARN" \
-            --query 'tasks[0].containers[0].exitCode' \
-            --output text)
+          EXIT_CODE="$(
+            aws ecs describe-tasks \
+              --cluster "$ECS_CLUSTER" \
+              --tasks "$TASK_ARN" \
+              --query 'tasks[0].containers[0].exitCode' \
+              --output text
+          )"
 
-          test "$EXIT_CODE" = "0"
+          if [[ "$EXIT_CODE" != "0" ]]; then
+            echo "Migration failed with exit code: $EXIT_CODE" >&2
+            exit 1
+          fi
 
       - name: Update backend service
+        env:
+          ECS_CLUSTER: ${{ steps.terraform-outputs.outputs.ecs-cluster }}
+          BACKEND_SERVICE: ${{ steps.terraform-outputs.outputs.backend-service }}
+          TASK_DEFINITION: ${{ steps.register-backend.outputs.arn }}
         run: |
           aws ecs update-service \
-            --cluster todo-platform-fargate-dev-cluster \
-            --service todo-platform-fargate-dev-service-backend \
-            --task-definition "${{ steps.register-backend.outputs.arn }}"
+            --cluster "$ECS_CLUSTER" \
+            --service "$BACKEND_SERVICE" \
+            --task-definition "$TASK_DEFINITION" \
+            --desired-count 1
 
       - name: Update frontend service
+        env:
+          ECS_CLUSTER: ${{ steps.terraform-outputs.outputs.ecs-cluster }}
+          FRONTEND_SERVICE: ${{ steps.terraform-outputs.outputs.frontend-service }}
+          TASK_DEFINITION: ${{ steps.register-frontend.outputs.arn }}
         run: |
           aws ecs update-service \
-            --cluster todo-platform-fargate-dev-cluster \
-            --service todo-platform-fargate-dev-service-frontend \
-            --task-definition "${{ steps.register-frontend.outputs.arn }}"
+            --cluster "$ECS_CLUSTER" \
+            --service "$FRONTEND_SERVICE" \
+            --task-definition "$TASK_DEFINITION" \
+            --desired-count 1
 
       - name: Wait for ECS services to become stable
+        env:
+          ECS_CLUSTER: ${{ steps.terraform-outputs.outputs.ecs-cluster }}
+          BACKEND_SERVICE: ${{ steps.terraform-outputs.outputs.backend-service }}
+          FRONTEND_SERVICE: ${{ steps.terraform-outputs.outputs.frontend-service }}
         run: |
           aws ecs wait services-stable \
-            --cluster todo-platform-fargate-dev-cluster \
+            --cluster "$ECS_CLUSTER" \
             --services \
-              todo-platform-fargate-dev-service-backend \
-              todo-platform-fargate-dev-service-frontend
+              "$BACKEND_SERVICE" \
+              "$FRONTEND_SERVICE"
