@@ -1,0 +1,76 @@
+name: Docker Build Push ECR
+description: Build and push one Docker image to Amazon ECR
+
+inputs:
+  dockerfile:
+    description: Path to the Dockerfile
+    required: true
+
+  context:
+    description: Docker build context path
+    required: true
+
+  repository-url:
+    description: Target ECR repository URL
+    required: true
+
+  image-tag:
+    description: Image tag to push
+    required: true
+
+  platform:
+    description: Target Docker build platform
+    required: false
+    default: linux/amd64
+
+outputs:
+  image-uri:
+    description: Full pushed image URI
+    value: ${{ steps.build.outputs.image-uri }}
+
+runs:
+  using: composite
+
+  steps:
+    - name: Build and push image
+      id: build
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        DOCKERFILE="${{ inputs.dockerfile }}"
+        CONTEXT="${{ inputs.context }}"
+        REPOSITORY_URL="${{ inputs.repository-url }}"
+        IMAGE_TAG="${{ inputs.image-tag }}"
+        PLATFORM="${{ inputs.platform }}"
+
+        if [[ -z "$DOCKERFILE" ]]; then
+          echo "Missing required input: dockerfile" >&2
+          exit 1
+        fi
+
+        if [[ -z "$CONTEXT" ]]; then
+          echo "Missing required input: context" >&2
+          exit 1
+        fi
+
+        if [[ -z "$REPOSITORY_URL" ]]; then
+          echo "Missing required input: repository-url" >&2
+          exit 1
+        fi
+
+        if [[ -z "$IMAGE_TAG" ]]; then
+          echo "Missing required input: image-tag" >&2
+          exit 1
+        fi
+
+        IMAGE_URI="${REPOSITORY_URL}:${IMAGE_TAG}"
+
+        docker buildx build \
+          --platform "$PLATFORM" \
+          -f "$DOCKERFILE" \
+          -t "$IMAGE_URI" \
+          --push \
+          "$CONTEXT"
+
+        echo "image-uri=$IMAGE_URI" >> "$GITHUB_OUTPUT"

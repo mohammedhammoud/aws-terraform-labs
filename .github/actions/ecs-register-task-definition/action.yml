@@ -1,0 +1,91 @@
+name: ECS Register Task Definition
+description: Register a new ECS task definition revision with an updated container image
+
+inputs:
+  task-definition:
+    description: Existing task definition ARN or family:revision
+    required: true
+
+  image:
+    description: Container image URI to set on the selected container
+    required: true
+
+  container-index:
+    description: Zero-based container definition index to update
+    required: false
+    default: "0"
+
+outputs:
+  task-definition-arn:
+    description: New registered task definition ARN
+    value: ${{ steps.register.outputs.task-definition-arn }}
+
+runs:
+  using: composite
+
+  steps:
+    - name: Register task definition revision
+      id: register
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        TASK_DEFINITION="${{ inputs.task-definition }}"
+        IMAGE="${{ inputs.image }}"
+        CONTAINER_INDEX="${{ inputs.container-index }}"
+
+        if [[ -z "$TASK_DEFINITION" ]]; then
+          echo "Missing required input: task-definition" >&2
+          exit 1
+        fi
+
+        if [[ -z "$IMAGE" ]]; then
+          echo "Missing required input: image" >&2
+          exit 1
+        fi
+
+        SOURCE_FILE="$(mktemp)"
+        UPDATED_FILE="$(mktemp)"
+        trap 'rm -f "$SOURCE_FILE" "$UPDATED_FILE"' EXIT
+
+        aws ecs describe-task-definition \
+          --task-definition "$TASK_DEFINITION" \
+          --query taskDefinition \
+          > "$SOURCE_FILE"
+
+        if ! jq -e --argjson index "$CONTAINER_INDEX" '.containerDefinitions[$index]' "$SOURCE_FILE" > /dev/null; then
+          echo "Container index not found in task definition: $CONTAINER_INDEX" >&2
+          exit 1
+        fi
+
+        jq \
+          --arg IMAGE "$IMAGE" \
+          --argjson INDEX "$CONTAINER_INDEX" \
+          '
+            .containerDefinitions[$INDEX].image = $IMAGE
+            | del(
+                .taskDefinitionArn,
+                .revision,
+                .status,
+                .requiresAttributes,
+                .compatibilities,
+                .registeredAt,
+                .registeredBy
+              )
+          ' \
+          "$SOURCE_FILE" \
+          > "$UPDATED_FILE"
+
+        TASK_DEFINITION_ARN="$(
+          aws ecs register-task-definition \
+            --cli-input-json "file://${UPDATED_FILE}" \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text
+        )"
+
+        if [[ -z "$TASK_DEFINITION_ARN" || "$TASK_DEFINITION_ARN" == "None" ]]; then
+          echo "Failed to register task definition for: $TASK_DEFINITION" >&2
+          exit 1
+        fi
+
+        echo "task-definition-arn=$TASK_DEFINITION_ARN" >> "$GITHUB_OUTPUT"

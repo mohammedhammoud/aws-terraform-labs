@@ -1,0 +1,126 @@
+name: ECS Run Task
+description: Run a one-off ECS task and require a zero exit code
+
+inputs:
+  cluster:
+    description: ECS cluster name or ARN
+    required: true
+
+  task-definition:
+    description: ECS task definition ARN or family:revision
+    required: true
+
+  subnet-ids:
+    description: Comma-separated subnet IDs for awsvpc networking
+    required: true
+
+  security-group-ids:
+    description: Comma-separated security group IDs for awsvpc networking
+    required: true
+
+  launch-type:
+    description: ECS launch type used when starting the task
+    required: false
+    default: FARGATE
+
+  assign-public-ip:
+    description: Whether to assign a public IP in awsvpc networking
+    required: false
+    default: DISABLED
+
+  container-index:
+    description: Zero-based container index used when reading the exit code
+    required: false
+    default: "0"
+
+outputs:
+  task-arn:
+    description: Started ECS task ARN
+    value: ${{ steps.run.outputs.task-arn }}
+
+runs:
+  using: composite
+
+  steps:
+    - name: Run ECS task
+      id: run
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        CLUSTER="${{ inputs.cluster }}"
+        TASK_DEFINITION="${{ inputs.task-definition }}"
+        SUBNET_IDS="${{ inputs.subnet-ids }}"
+        SECURITY_GROUP_IDS="${{ inputs.security-group-ids }}"
+        LAUNCH_TYPE="${{ inputs.launch-type }}"
+        ASSIGN_PUBLIC_IP="${{ inputs.assign-public-ip }}"
+        CONTAINER_INDEX="${{ inputs.container-index }}"
+
+        if [[ -z "$CLUSTER" ]]; then
+          echo "Missing required input: cluster" >&2
+          exit 1
+        fi
+
+        if [[ -z "$TASK_DEFINITION" ]]; then
+          echo "Missing required input: task-definition" >&2
+          exit 1
+        fi
+
+        if [[ -z "$SUBNET_IDS" ]]; then
+          echo "Missing required input: subnet-ids" >&2
+          exit 1
+        fi
+
+        if [[ -z "$SECURITY_GROUP_IDS" ]]; then
+          echo "Missing required input: security-group-ids" >&2
+          exit 1
+        fi
+
+        RUN_TASK_OUTPUT="$(mktemp)"
+        DESCRIBE_TASK_OUTPUT="$(mktemp)"
+        trap 'rm -f "$RUN_TASK_OUTPUT" "$DESCRIBE_TASK_OUTPUT"' EXIT
+
+        aws ecs run-task \
+          --cluster "$CLUSTER" \
+          --launch-type "$LAUNCH_TYPE" \
+          --task-definition "$TASK_DEFINITION" \
+          --network-configuration "awsvpcConfiguration={subnets=[$SUBNET_IDS],securityGroups=[$SECURITY_GROUP_IDS],assignPublicIp=$ASSIGN_PUBLIC_IP}" \
+          > "$RUN_TASK_OUTPUT"
+
+        TASK_ARN="$(jq -r '.tasks[0].taskArn // empty' "$RUN_TASK_OUTPUT")"
+
+        if [[ -z "$TASK_ARN" || "$TASK_ARN" == "null" ]]; then
+          FAILURE_REASON="$(jq -r '.failures[0].reason // empty' "$RUN_TASK_OUTPUT")"
+          echo "ECS task failed to start${FAILURE_REASON:+: $FAILURE_REASON}" >&2
+          exit 1
+        fi
+
+        echo "task-arn=$TASK_ARN" >> "$GITHUB_OUTPUT"
+
+        aws ecs wait tasks-stopped \
+          --cluster "$CLUSTER" \
+          --tasks "$TASK_ARN"
+
+        aws ecs describe-tasks \
+          --cluster "$CLUSTER" \
+          --tasks "$TASK_ARN" \
+          > "$DESCRIBE_TASK_OUTPUT"
+
+        if ! jq -e --argjson index "$CONTAINER_INDEX" '.tasks[0].containers[$index]' "$DESCRIBE_TASK_OUTPUT" > /dev/null; then
+          echo "Container index not found in stopped task: $CONTAINER_INDEX" >&2
+          exit 1
+        fi
+
+        EXIT_CODE="$(jq -r --argjson index "$CONTAINER_INDEX" '.tasks[0].containers[$index].exitCode // empty' "$DESCRIBE_TASK_OUTPUT")"
+
+        if [[ -z "$EXIT_CODE" || "$EXIT_CODE" == "null" ]]; then
+          STOPPED_REASON="$(jq -r '.tasks[0].stoppedReason // empty' "$DESCRIBE_TASK_OUTPUT")"
+          echo "Task stopped without an exit code${STOPPED_REASON:+: $STOPPED_REASON}" >&2
+          exit 1
+        fi
+
+        if [[ "$EXIT_CODE" != "0" ]]; then
+          STOPPED_REASON="$(jq -r '.tasks[0].stoppedReason // empty' "$DESCRIBE_TASK_OUTPUT")"
+          echo "Task exited with code ${EXIT_CODE}${STOPPED_REASON:+: $STOPPED_REASON}" >&2
+          exit 1
+        fi

@@ -1,0 +1,58 @@
+name: Terraform Outputs
+description: Read Terraform outputs as compact JSON
+
+inputs:
+  working-directory:
+    description: Path to the Terraform directory
+    required: true
+
+  terraform-version:
+    description: Terraform version
+    required: false
+    default: "1.12.2"
+
+outputs:
+  json:
+    description: Terraform outputs as compact JSON
+    value: ${{ steps.outputs.outputs.json }}
+
+runs:
+  using: composite
+
+  steps:
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ inputs.terraform-version }}
+        terraform_wrapper: false
+
+    - name: Terraform init
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -euo pipefail
+        terraform init -input=false
+
+    - name: Read Terraform outputs
+      id: outputs
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -euo pipefail
+
+        OUTPUTS="$(
+          terraform output -json |
+          jq -c '
+            with_entries(
+              select(.value.sensitive != true)
+              | .value = .value.value
+            )
+          '
+        )"
+
+        if [[ -z "$OUTPUTS" || "$OUTPUTS" == "null" || "$OUTPUTS" == "{}" ]]; then
+          echo "Terraform returned no outputs in: ${{ inputs.working-directory }}" >&2
+          exit 1
+        fi
+
+        echo "json=$OUTPUTS" >> "$GITHUB_OUTPUT"
