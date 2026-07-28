@@ -45,53 +45,55 @@ jobs:
         working-directory: ${{ env.TERRAFORM_DIRECTORY }}
         run: terraform init -input=false
 
-      # Application images are deployed independently by CI/CD.
-      # Reuse the image tags stored in Terraform state so deployment-only
-      # changes do not appear as infrastructure drift in PR plans.
-      - name: Read image tags from Terraform state
+      - name: Resolve image tags
         id: terraform-state
         working-directory: ${{ env.TERRAFORM_DIRECTORY }}
         shell: bash
         run: |
           set -euo pipefail
 
-          terraform show -json > terraform-state.json
+          cleanup() {
+            rm -f -- terraform-state.json
+          }
+          trap cleanup EXIT
 
-          get_image_tag() {
-            local resource_address="$1"
+          BACKEND_IMAGE_TAG="bootstrap"
+          FRONTEND_IMAGE_TAG="bootstrap"
 
-            local image
-            image="$(
-              jq -r \
-                --arg address "$resource_address" \
-                '
-                  .values.root_module.resources[]
-                  | select(.address == $address)
-                  | .values.container_definitions
-                  | fromjson
-                  | .[0].image
-                ' \
-                terraform-state.json
-            )"
+          if terraform show -json > terraform-state.json 2>/dev/null; then
+            get_image_tag() {
+              local resource_address="$1"
+              local image
 
-            if [[ -z "$image" || "$image" == "null" ]]; then
-              echo "Container image not found for: $resource_address" >&2
-              exit 1
+              image="$(
+                jq -r \
+                  --arg address "$resource_address" \
+                  '
+                    .values.root_module.resources[]?
+                    | select(.address == $address)
+                    | .values.container_definitions
+                    | fromjson
+                    | .[0].image
+                  ' \
+                  terraform-state.json
+              )"
+
+              if [[ -n "$image" && "$image" != "null" ]]; then
+                echo "${image##*:}"
+              fi
+            }
+
+            STATE_BACKEND_IMAGE_TAG="$(get_image_tag "aws_ecs_task_definition.backend" || true)"
+            STATE_FRONTEND_IMAGE_TAG="$(get_image_tag "aws_ecs_task_definition.frontend" || true)"
+
+            if [[ -n "$STATE_BACKEND_IMAGE_TAG" ]]; then
+              BACKEND_IMAGE_TAG="$STATE_BACKEND_IMAGE_TAG"
             fi
 
-            echo "${image##*:}"
-          }
-
-          BACKEND_IMAGE_TAG="$(
-            get_image_tag "aws_ecs_task_definition.backend"
-          )"
-
-          FRONTEND_IMAGE_TAG="$(
-            get_image_tag "aws_ecs_task_definition.frontend"
-          )"
-
-          echo "Backend Terraform image tag: $BACKEND_IMAGE_TAG"
-          echo "Frontend Terraform image tag: $FRONTEND_IMAGE_TAG"
+            if [[ -n "$STATE_FRONTEND_IMAGE_TAG" ]]; then
+              FRONTEND_IMAGE_TAG="$STATE_FRONTEND_IMAGE_TAG"
+            fi
+          fi
 
           echo "backend-image-tag=$BACKEND_IMAGE_TAG" >> "$GITHUB_OUTPUT"
           echo "frontend-image-tag=$FRONTEND_IMAGE_TAG" >> "$GITHUB_OUTPUT"
@@ -107,8 +109,8 @@ jobs:
               "environment": "dev",
               "backend_image_tag": "${{ steps.terraform-state.outputs.backend-image-tag }}",
               "frontend_image_tag": "${{ steps.terraform-state.outputs.frontend-image-tag }}",
-              "backend_desired_count": 1,
-              "frontend_desired_count": 1
+              "backend_desired_count": 0,
+              "frontend_desired_count": 0
             }
 
       - name: Comment Terraform plan

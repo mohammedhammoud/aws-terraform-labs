@@ -7,19 +7,60 @@ permissions:
   id-token: write
   contents: read
 
-env:
-  AWS_REGION: eu-north-1
-  TERRAFORM_VERSION: "1.12.2"
-  TERRAFORM_DIRECTORY: infra/ecs-fargate/terraform
-
 concurrency:
   group: ecs-fargate-dev-deploy
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: ECS Fargate Deploy
+  infrastructure:
+    name: Infrastructure
     runs-on: ubuntu-latest
+    environment: dev
+    env:
+      AWS_REGION: eu-north-1
+      TERRAFORM_DIRECTORY: infra/ecs-fargate/terraform
+      TERRAFORM_VERSION: "1.12.2"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_TERRAFORM_APPLY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: terraform-apply
+
+      - name: Verify assumed identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws sts get-caller-identity
+
+      - name: Terraform apply
+        uses: ./.github/actions/terraform-apply
+        with:
+          working-directory: ${{ env.TERRAFORM_DIRECTORY }}
+          terraform-version: ${{ env.TERRAFORM_VERSION }}
+          terraform-vars: >-
+            {
+              "environment": "dev",
+              "backend_image_tag": "bootstrap",
+              "frontend_image_tag": "bootstrap",
+              "backend_desired_count": 0,
+              "frontend_desired_count": 0
+            }
+
+  application:
+    name: Application
+    needs: infrastructure
+    runs-on: ubuntu-latest
+    environment: dev
+    env:
+      AWS_REGION: eu-north-1
+      TERRAFORM_VERSION: "1.12.2"
+      TERRAFORM_DIRECTORY: infra/ecs-fargate/terraform
 
     steps:
       - name: Checkout repository
@@ -45,7 +86,7 @@ jobs:
           working-directory: ${{ env.TERRAFORM_DIRECTORY }}
           terraform-version: ${{ env.TERRAFORM_VERSION }}
 
-      - name: Resolve ECS deployment values
+      - name: Resolve deployment values
         id: deployment-values
         env:
           TERRAFORM_OUTPUTS_JSON: ${{ steps.terraform-outputs.outputs.json }}
@@ -53,67 +94,50 @@ jobs:
         run: |
           set -euo pipefail
 
-          get_string_output() {
-            local terraform_name="$1"
-            local output_name="$2"
+          output_string() {
+            local name="$1"
             local value
 
-            value="$(
-              jq -r \
-                --arg name "$terraform_name" \
-                '.[$name] // empty' \
-                <<< "$TERRAFORM_OUTPUTS_JSON"
-            )"
+            value="$(jq -r --arg name "$name" '.[$name] // empty' <<< "$TERRAFORM_OUTPUTS_JSON")"
 
             if [[ -z "$value" || "$value" == "null" ]]; then
-              echo "Missing required Terraform output: ${output_name} (${terraform_name})" >&2
+              echo "Missing required Terraform output: $name" >&2
               exit 1
             fi
 
             echo "$value"
           }
 
-          get_csv_output() {
-            local terraform_name="$1"
-            local output_name="$2"
+          output_csv() {
+            local name="$1"
             local value
 
             value="$(
               jq -r \
-                --arg name "$terraform_name" \
-                '
-                  .[$name]
-                  | if type == "array" and length > 0 then join(",") else empty end
-                ' \
+                --arg name "$name" \
+                '.[$name] | if type == "array" and length > 0 then join(",") else empty end' \
                 <<< "$TERRAFORM_OUTPUTS_JSON"
             )"
 
             if [[ -z "$value" || "$value" == "null" ]]; then
-              echo "Missing required Terraform output: ${output_name} (${terraform_name})" >&2
+              echo "Missing required Terraform output: $name" >&2
               exit 1
             fi
 
             echo "$value"
           }
-
-          ECS_CLUSTER="$(get_string_output "ecs_cluster_name" "ecs-cluster")"
-          BACKEND_SERVICE="$(get_string_output "backend_ecs_service_name" "backend-service")"
-          FRONTEND_SERVICE="$(get_string_output "frontend_ecs_service_name" "frontend-service")"
-          BACKEND_ECR_REPOSITORY="$(get_string_output "backend_ecr_repository_url" "backend-ecr-repository")"
-          FRONTEND_ECR_REPOSITORY="$(get_string_output "frontend_ecr_repository_url" "frontend-ecr-repository")"
-          BACKEND_SECURITY_GROUP_ID="$(get_string_output "backend_security_group_id" "backend-security-group-id")"
-          PRIVATE_SUBNET_IDS="$(get_csv_output "private_subnet_ids" "private-subnet-ids")"
-          MIGRATION_TASK_DEFINITION_ARN="$(get_string_output "backend_migration_task_definition_arn" "migration-task-definition-arn")"
 
           {
-            echo "ecs-cluster=$ECS_CLUSTER"
-            echo "backend-service=$BACKEND_SERVICE"
-            echo "frontend-service=$FRONTEND_SERVICE"
-            echo "backend-ecr-repository=$BACKEND_ECR_REPOSITORY"
-            echo "frontend-ecr-repository=$FRONTEND_ECR_REPOSITORY"
-            echo "backend-security-group-id=$BACKEND_SECURITY_GROUP_ID"
-            echo "private-subnet-ids=$PRIVATE_SUBNET_IDS"
-            echo "migration-task-definition-arn=$MIGRATION_TASK_DEFINITION_ARN"
+            echo "ecs-cluster=$(output_string ecs_cluster_name)"
+            echo "backend-service=$(output_string backend_ecs_service_name)"
+            echo "frontend-service=$(output_string frontend_ecs_service_name)"
+            echo "backend-ecr-repository=$(output_string backend_ecr_repository_url)"
+            echo "frontend-ecr-repository=$(output_string frontend_ecr_repository_url)"
+            echo "backend-security-group-id=$(output_string backend_security_group_id)"
+            echo "private-subnet-ids=$(output_csv private_subnet_ids)"
+            echo "backend-task-definition-arn=$(output_string backend_task_definition_arn)"
+            echo "frontend-task-definition-arn=$(output_string frontend_task_definition_arn)"
+            echo "migration-task-definition-arn=$(output_string backend_migration_task_definition_arn)"
           } >> "$GITHUB_OUTPUT"
 
       - name: Log in to Amazon ECR
@@ -122,75 +146,34 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push frontend image
-        uses: docker/build-push-action@v6
+      - name: Build frontend
+        uses: ./.github/actions/docker-build-push
         with:
           context: apps/todo
-          file: apps/todo/frontend/Dockerfile
-          platforms: linux/amd64
-          push: true
-          tags: ${{ steps.deployment-values.outputs.frontend-ecr-repository }}:${{ github.sha }}
+          dockerfile: apps/todo/frontend/Dockerfile
+          repository: ${{ steps.deployment-values.outputs.frontend-ecr-repository }}
+          image-tag: ${{ github.sha }}
 
-      - name: Build and push backend image
-        uses: docker/build-push-action@v6
+      - name: Build backend
+        uses: ./.github/actions/docker-build-push
         with:
           context: apps/todo
-          file: apps/todo/backend/Dockerfile
-          platforms: linux/amd64
-          push: true
-          tags: ${{ steps.deployment-values.outputs.backend-ecr-repository }}:${{ github.sha }}
-
-      - name: Find current service task definitions
-        id: current-task-definitions
-        env:
-          ECS_CLUSTER: ${{ steps.deployment-values.outputs.ecs-cluster }}
-          BACKEND_SERVICE: ${{ steps.deployment-values.outputs.backend-service }}
-          FRONTEND_SERVICE: ${{ steps.deployment-values.outputs.frontend-service }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          BACKEND_TASK_DEFINITION="$(
-            aws ecs describe-services \
-              --cluster "$ECS_CLUSTER" \
-              --services "$BACKEND_SERVICE" \
-              --query 'services[0].taskDefinition' \
-              --output text
-          )"
-
-          FRONTEND_TASK_DEFINITION="$(
-            aws ecs describe-services \
-              --cluster "$ECS_CLUSTER" \
-              --services "$FRONTEND_SERVICE" \
-              --query 'services[0].taskDefinition' \
-              --output text
-          )"
-
-          if [[ -z "$BACKEND_TASK_DEFINITION" || "$BACKEND_TASK_DEFINITION" == "None" ]]; then
-            echo "Backend task definition not found for service: $BACKEND_SERVICE" >&2
-            exit 1
-          fi
-
-          if [[ -z "$FRONTEND_TASK_DEFINITION" || "$FRONTEND_TASK_DEFINITION" == "None" ]]; then
-            echo "Frontend task definition not found for service: $FRONTEND_SERVICE" >&2
-            exit 1
-          fi
-
-          echo "backend=$BACKEND_TASK_DEFINITION" >> "$GITHUB_OUTPUT"
-          echo "frontend=$FRONTEND_TASK_DEFINITION" >> "$GITHUB_OUTPUT"
+          dockerfile: apps/todo/backend/Dockerfile
+          repository: ${{ steps.deployment-values.outputs.backend-ecr-repository }}
+          image-tag: ${{ github.sha }}
 
       - name: Register backend task definition
         id: register-backend
         uses: ./.github/actions/ecs-register-task-definition
         with:
-          task-definition: ${{ steps.current-task-definitions.outputs.backend }}
+          task-definition: ${{ steps.deployment-values.outputs.backend-task-definition-arn }}
           image: ${{ steps.deployment-values.outputs.backend-ecr-repository }}:${{ github.sha }}
 
       - name: Register frontend task definition
         id: register-frontend
         uses: ./.github/actions/ecs-register-task-definition
         with:
-          task-definition: ${{ steps.current-task-definitions.outputs.frontend }}
+          task-definition: ${{ steps.deployment-values.outputs.frontend-task-definition-arn }}
           image: ${{ steps.deployment-values.outputs.frontend-ecr-repository }}:${{ github.sha }}
 
       - name: Register migration task definition
@@ -200,7 +183,7 @@ jobs:
           task-definition: ${{ steps.deployment-values.outputs.migration-task-definition-arn }}
           image: ${{ steps.deployment-values.outputs.backend-ecr-repository }}:${{ github.sha }}
 
-      - name: Run database migration
+      - name: Run migration
         uses: ./.github/actions/ecs-run-task
         with:
           cluster: ${{ steps.deployment-values.outputs.ecs-cluster }}
@@ -208,35 +191,23 @@ jobs:
           subnet-ids: ${{ steps.deployment-values.outputs.private-subnet-ids }}
           security-group-ids: ${{ steps.deployment-values.outputs.backend-security-group-id }}
 
-      - name: Update backend service
-        env:
-          ECS_CLUSTER: ${{ steps.deployment-values.outputs.ecs-cluster }}
-          BACKEND_SERVICE: ${{ steps.deployment-values.outputs.backend-service }}
-          TASK_DEFINITION: ${{ steps.register-backend.outputs.task-definition-arn }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          aws ecs update-service \
-            --cluster "$ECS_CLUSTER" \
-            --service "$BACKEND_SERVICE" \
-            --task-definition "$TASK_DEFINITION" \
-            --desired-count 1
+      - name: Deploy backend
+        uses: ./.github/actions/ecs-update-service
+        with:
+          cluster: ${{ steps.deployment-values.outputs.ecs-cluster }}
+          service: ${{ steps.deployment-values.outputs.backend-service }}
+          task-definition: ${{ steps.register-backend.outputs.task-definition-arn }}
+          desired-count: "1"
 
-      - name: Update frontend service
-        env:
-          ECS_CLUSTER: ${{ steps.deployment-values.outputs.ecs-cluster }}
-          FRONTEND_SERVICE: ${{ steps.deployment-values.outputs.frontend-service }}
-          TASK_DEFINITION: ${{ steps.register-frontend.outputs.task-definition-arn }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          aws ecs update-service \
-            --cluster "$ECS_CLUSTER" \
-            --service "$FRONTEND_SERVICE" \
-            --task-definition "$TASK_DEFINITION" \
-            --desired-count 1
+      - name: Deploy frontend
+        uses: ./.github/actions/ecs-update-service
+        with:
+          cluster: ${{ steps.deployment-values.outputs.ecs-cluster }}
+          service: ${{ steps.deployment-values.outputs.frontend-service }}
+          task-definition: ${{ steps.register-frontend.outputs.task-definition-arn }}
+          desired-count: "1"
 
-      - name: Wait for ECS services to become stable
+      - name: Wait for services
         env:
           ECS_CLUSTER: ${{ steps.deployment-values.outputs.ecs-cluster }}
           BACKEND_SERVICE: ${{ steps.deployment-values.outputs.backend-service }}

@@ -160,7 +160,11 @@ resource "aws_ecs_service" "backend" {
   }
 
   lifecycle {
-    ignore_changes = [task_definition]
+    # Deployment workflow owns these after bootstrap.
+    ignore_changes = [
+      desired_count,
+      task_definition,
+    ]
   }
 
   depends_on = [
@@ -194,7 +198,11 @@ resource "aws_ecs_service" "frontend" {
   }
 
   lifecycle {
-    ignore_changes = [task_definition]
+    # Deployment workflow owns these after bootstrap.
+    ignore_changes = [
+      desired_count,
+      task_definition,
+    ]
   }
 
   depends_on = [

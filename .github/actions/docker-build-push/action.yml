@@ -1,0 +1,56 @@
+name: Build container image
+description: Build and push a container image
+
+inputs:
+  context:
+    description: Docker build context path
+    required: true
+
+  dockerfile:
+    description: Dockerfile path
+    required: true
+
+  repository:
+    description: Container repository URI
+    required: true
+
+  image-tag:
+    description: Image tag
+    required: true
+
+  platform:
+    description: Target platform
+    required: false
+    default: linux/amd64
+
+runs:
+  using: composite
+
+  steps:
+    - name: Validate paths
+      shell: bash
+      env:
+        INPUT_CONTEXT: ${{ inputs.context }}
+        INPUT_DOCKERFILE: ${{ inputs.dockerfile }}
+      run: |
+        set -euo pipefail
+
+        if [[ ! -d "$INPUT_CONTEXT" ]]; then
+          echo "Docker build context not found: $INPUT_CONTEXT" >&2
+          exit 1
+        fi
+
+        if [[ ! -f "$INPUT_DOCKERFILE" ]]; then
+          echo "Dockerfile not found: $INPUT_DOCKERFILE" >&2
+          exit 1
+        fi
+
+    - name: Build and push image
+      uses: docker/build-push-action@v6
+      with:
+        context: ${{ inputs.context }}
+        file: ${{ inputs.dockerfile }}
+        platforms: ${{ inputs.platform }}
+        push: true
+        tags: ${{ inputs.repository }}:${{ inputs.image-tag }}
+

@@ -1,0 +1,51 @@
+name: Deploy ECS service
+description: Update an ECS service
+
+inputs:
+  cluster:
+    description: ECS cluster name or ARN
+    required: true
+
+  service:
+    description: ECS service name or ARN
+    required: true
+
+  task-definition:
+    description: ECS task definition ARN or family:revision
+    required: true
+
+  desired-count:
+    description: Desired service count
+    required: false
+    default: ""
+
+runs:
+  using: composite
+
+  steps:
+    - name: Update service
+      shell: bash
+      env:
+        INPUT_CLUSTER: ${{ inputs.cluster }}
+        INPUT_SERVICE: ${{ inputs.service }}
+        INPUT_TASK_DEFINITION: ${{ inputs.task-definition }}
+        INPUT_DESIRED_COUNT: ${{ inputs.desired-count }}
+      run: |
+        set -euo pipefail
+
+        if [[ -n "$INPUT_DESIRED_COUNT" && ! "$INPUT_DESIRED_COUNT" =~ ^[0-9]+$ ]]; then
+          echo "Invalid desired-count: $INPUT_DESIRED_COUNT" >&2
+          exit 1
+        fi
+
+        args=(
+          --cluster "$INPUT_CLUSTER"
+          --service "$INPUT_SERVICE"
+          --task-definition "$INPUT_TASK_DEFINITION"
+        )
+
+        if [[ -n "$INPUT_DESIRED_COUNT" ]]; then
+          args+=(--desired-count "$INPUT_DESIRED_COUNT")
+        fi
+
+        aws ecs update-service "${args[@]}"

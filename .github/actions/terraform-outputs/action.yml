@@ -1,9 +1,9 @@
-name: Terraform Outputs
-description: Read Terraform outputs as compact JSON
+name: Terraform outputs
+description: Read Terraform outputs as JSON
 
 inputs:
   working-directory:
-    description: Path to the Terraform directory
+    description: Terraform directory
     required: true
 
   terraform-version:
@@ -20,6 +20,18 @@ runs:
   using: composite
 
   steps:
+    - name: Validate inputs
+      shell: bash
+      env:
+        WORKING_DIRECTORY: ${{ inputs.working-directory }}
+      run: |
+        set -euo pipefail
+
+        if [[ ! -d "$WORKING_DIRECTORY" ]]; then
+          echo "Terraform working directory not found: $WORKING_DIRECTORY" >&2
+          exit 1
+        fi
+
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
       with:
@@ -29,30 +41,25 @@ runs:
     - name: Terraform init
       shell: bash
       working-directory: ${{ inputs.working-directory }}
-      run: |
-        set -euo pipefail
-        terraform init -input=false
+      run: terraform init -input=false
 
-    - name: Read Terraform outputs
+    - name: Read outputs
       id: outputs
       shell: bash
+      env:
+        WORKING_DIRECTORY: ${{ inputs.working-directory }}
       working-directory: ${{ inputs.working-directory }}
       run: |
         set -euo pipefail
 
-        OUTPUTS="$(
+        outputs="$(
           terraform output -json |
-          jq -c '
-            with_entries(
-              select(.value.sensitive != true)
-              | .value = .value.value
-            )
-          '
+          jq -c 'with_entries(select(.value.sensitive != true) | .value = .value.value)'
         )"
 
-        if [[ -z "$OUTPUTS" || "$OUTPUTS" == "null" || "$OUTPUTS" == "{}" ]]; then
-          echo "Terraform returned no outputs in: ${{ inputs.working-directory }}" >&2
+        if [[ -z "$outputs" || "$outputs" == "null" || "$outputs" == "{}" ]]; then
+          echo "Terraform returned no outputs in: $WORKING_DIRECTORY" >&2
           exit 1
         fi
 
-        echo "json=$OUTPUTS" >> "$GITHUB_OUTPUT"
+        echo "json=$outputs" >> "$GITHUB_OUTPUT"

@@ -1,5 +1,5 @@
-name: Terraform plan
-description: Run Terraform format, validate, and plan
+name: Terraform apply
+description: Run Terraform format, validate, and apply an exact saved plan
 
 inputs:
   working-directory:
@@ -16,14 +16,10 @@ inputs:
     required: false
     default: "{}"
 
-outputs:
-  plan:
-    description: Terraform plan output
-    value: ${{ steps.plan.outputs.plan }}
-
-  exit-code:
-    description: Terraform plan exit code
-    value: ${{ steps.plan.outputs.exit-code }}
+  plan-file:
+    description: Terraform binary plan file name
+    required: false
+    default: tfplan
 
 runs:
   using: composite
@@ -34,11 +30,17 @@ runs:
       env:
         WORKING_DIRECTORY: ${{ inputs.working-directory }}
         TERRAFORM_VARS: ${{ inputs.terraform-vars }}
+        PLAN_FILE: ${{ inputs.plan-file }}
       run: |
         set -euo pipefail
 
         if [[ ! -d "$WORKING_DIRECTORY" ]]; then
           echo "Terraform working directory not found: $WORKING_DIRECTORY" >&2
+          exit 1
+        fi
+
+        if [[ ! "$PLAN_FILE" =~ ^[A-Za-z0-9._-]+$ ]]; then
+          echo "Invalid Terraform plan file name: $PLAN_FILE" >&2
           exit 1
         fi
 
@@ -65,41 +67,28 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       run: terraform validate
 
-    - name: Terraform plan
-      id: plan
+    - name: Terraform apply
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
         TERRAFORM_VARS: ${{ inputs.terraform-vars }}
+        PLAN_FILE: ${{ inputs.plan-file }}
       run: |
         set -euo pipefail
+
+        trap 'rm -f -- "$PLAN_FILE"' EXIT
 
         mapfile -d '' -t var_args < <(
           jq -rj 'to_entries[] | "-var=\(.key)=\(.value | tostring)\u0000"' <<< "$TERRAFORM_VARS"
         )
 
-        set +e
         terraform plan \
           -input=false \
           -no-color \
-          -detailed-exitcode \
-          "${var_args[@]}" \
-          > terraform-plan.txt 2>&1
-        exit_code=$?
-        set -e
+          -out="$PLAN_FILE" \
+          "${var_args[@]}"
 
-        cat terraform-plan.txt
-
-        delimiter="TERRAFORM_PLAN_$(date +%s%N)"
-        {
-          echo "plan<<$delimiter"
-          cat terraform-plan.txt
-          echo "$delimiter"
-          echo "exit-code=$exit_code"
-        } >> "$GITHUB_OUTPUT"
-
-        case "$exit_code" in
-          0) ;;
-          2) ;;
-          *) exit "$exit_code" ;;
-        esac
+        terraform apply \
+          -input=false \
+          -no-color \
+          "$PLAN_FILE"
