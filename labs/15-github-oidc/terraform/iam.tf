@@ -14,12 +14,9 @@ data "aws_iam_policy_document" "oidc" {
     }
 
     condition {
-      test     = "StringLike"
+      test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values = [
-        "repo:${var.github_repository}:ref:refs/heads/${var.github_branch}",
-        "repo:${var.github_repository}:environment:*",
-      ]
+      values   = ["repo:${var.github_repository}:ref:refs/heads/${var.github_branch}"]
     }
   }
 }
