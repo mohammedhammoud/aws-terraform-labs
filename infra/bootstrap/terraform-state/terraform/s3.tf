@@ -1,5 +1,5 @@
 resource "aws_s3_bucket" "main" {
-  bucket = "${local.name_prefix}-s3"
+  bucket        = "${local.name_prefix}-s3"
   force_destroy = true
 }
 
