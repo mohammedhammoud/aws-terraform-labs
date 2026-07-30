@@ -115,6 +115,27 @@ data "aws_iam_policy_document" "workload_github_actions_apply" {
   }
 
   statement {
+    sid = "KmsForRdsEncryption"
+
+    actions = [
+      "kms:CreateGrant",
+      "kms:Decrypt",
+      "kms:DescribeKey",
+      "kms:Encrypt",
+      "kms:GenerateDataKey*",
+      "kms:ReEncrypt*",
+    ]
+
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["rds.${var.region}.amazonaws.com"]
+    }
+  }
+
+  statement {
     sid = "ReadGithubOidcProvider"
 
     actions = [
