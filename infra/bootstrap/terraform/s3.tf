@@ -1,6 +1,6 @@
 resource "aws_s3_bucket" "main" {
-  bucket        = "${local.name_prefix}-s3"
-  force_destroy = true
+  bucket        = var.state_bucket_name
+  force_destroy = false
 }
 
 resource "aws_s3_bucket_public_access_block" "main" {
