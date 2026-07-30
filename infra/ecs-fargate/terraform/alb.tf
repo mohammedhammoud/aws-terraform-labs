@@ -11,7 +11,7 @@ resource "aws_lb" "main" {
 }
 
 resource "aws_lb_target_group" "backend" {
-  name_prefix = "todo-"
+  name_prefix = "ecs-"
   target_type = "ip"
   port        = var.backend_port
   protocol    = "HTTP"

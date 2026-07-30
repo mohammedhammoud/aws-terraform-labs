@@ -9,7 +9,7 @@ variable "environment" {
 
 variable "project_name" {
   type    = string
-  default = "todo-platform-fargate"
+  default = "ecs-fargate"
 }
 
 variable "region" {
@@ -119,7 +119,3 @@ variable "github_repository" {
   default = "mohammedhammoud@5408383/aws-terraform-labs@1293580188"
 }
 
-variable "github_branch" {
-  type    = string
-  default = "master"
-}
