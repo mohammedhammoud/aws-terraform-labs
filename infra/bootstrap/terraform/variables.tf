@@ -20,6 +20,6 @@ variable "github_repository" {
 
 variable "github_actions_plan_role_name" {
   type    = string
-  default = "aws-terraform-labs-plan"
+  default = "github-actions-terraform-plan"
 }
 

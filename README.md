@@ -1,12 +1,9 @@
 # AWS Terraform Labs
 
-Public AWS and Terraform learning repo with small labs and larger end-to-end labs focused on AWS, Terraform, and platform building.
+AWS and Terraform learning repo with:
 
-Many labs are designed for local Floci. Some larger labs were only verified in AWS where local support was missing.
-
-## Topics covered
-
-AWS, Terraform, Infrastructure as Code, DevOps, cloud engineering, S3, IAM, Lambda, EC2, VPC, ALB, ECS, Step Functions, CloudFront, EventBridge, RDS, CloudWatch, GitHub Actions OIDC, and SQS.
+- `labs/` for smaller focused exercises
+- `infra/` for larger AWS-backed stacks
 
 ## Repo structure
 
@@ -16,85 +13,67 @@ labs/
     README.md
     terraform/
 infra/
-  <lab-name>/
+  bootstrap/
+    terraform/
+  ecs-fargate/
     README.md
     terraform/
-tools/
-  tf.sh
+scripts/
+  tf-ecs.sh
 ```
-
-`labs/` contains smaller concept-focused exercises.
-
-`infra/` contains larger end-to-end labs.
-
-Each lab has:
-- a `README.md`
-- Terraform in `terraform/`
-
-## Prerequisites
-
-- `floci`
-- `terraform`
-- `direnv`
-- `awscli`
-- `python3`
-- `node`
-
-## Start Floci
-
-```sh
-floci start
-direnv allow
-aws sts get-caller-identity
-```
-
-Expected local values:
-- Account: `000000000000`
-- Arn: `arn:aws:iam::000000000000:root`
-- Endpoint: `http://localhost.floci.io:4566`
-
-## Run a Terraform lab
-
-```sh
-cd labs/01-s3-basics
-../../tools/tf.sh init
-../../tools/tf.sh plan
-../../tools/tf.sh apply
-../../tools/tf.sh destroy
-```
-
-`tools/tf.sh` expects to run from a lab directory or its `terraform/` subdirectory.
 
 ## Labs
 
-| Lab | AWS service(s) | Main concepts | Link |
-|---|---|---|---|
-| 01 | S3 | buckets, access logging, bucket policies, public access block | [01-s3-basics](labs/01-s3-basics) |
-| 02 | IAM, S3 | users, groups, policies, roles, trust policies | [02-iam-basics](labs/02-iam-basics) |
-| 03 | Lambda, S3 | event notifications, Lambda permissions, object processing | [03-lambda-s3](labs/03-lambda-s3) |
-| 04 | EC2, IAM, S3 | instance profiles, user data, S3 access from EC2 | [04-ec2-basics](labs/04-ec2-basics) |
-| 05 | VPC, EC2 | public subnet, route tables, internet gateway, security groups | [05-vpc-basics](labs/05-vpc-basics) |
-| 06 | ALB, EC2, VPC | listeners, target groups, security group references | [06-alb-ec2-basics](labs/06-alb-ec2-basics) |
-| 07 | ALB, EC2 Auto Scaling, VPC | launch templates, Auto Scaling Group, health checks | [07-alb-autoscaling](labs/07-alb-autoscaling) |
-| 08 | ECS, Fargate, ALB, VPC | `awsvpc`, IP targets, ECS service networking | [08-ecs-fargate-alb](labs/08-ecs-fargate-alb) |
-| 09 | ECS, EC2, ALB, Auto Scaling | ECS on EC2, cluster capacity, `awsvpc` tasks | [09-ecs-ec2-alb](labs/09-ecs-ec2-alb) |
-| 10 | Step Functions, Lambda | workflow orchestration, choice states, Lambda tasks | [10-step-functions](labs/10-step-functions) |
-| 11 | CloudFront, S3 | Origin Access Control, private S3 origins, bucket policy | [11-cloudfront-s3-oac](labs/11-cloudfront-s3-oac) |
-| 12 | EventBridge, Lambda | custom event buses, rules, fan-out to Lambda | [12-eventbridge](labs/12-eventbridge) |
-| 13 | RDS, EC2, VPC | private PostgreSQL, DB subnet groups, security groups | [13-rds-private](labs/13-rds-private) |
-| 14 | CloudWatch, EC2, SNS | logs, metrics, dashboards, alarms, notifications | [14-observability](labs/14-observability) |
-| 15 | IAM, STS, GitHub Actions | GitHub OIDC, trust policies, temporary credentials | [15-github-oidc](labs/15-github-oidc) |
-| 16 | ECS, EC2, ALB, CodeDeploy | blue/green deployments, target groups, traffic shifting | [16-ecs-blue-green](labs/16-ecs-blue-green) |
-| 17 | SQS, Lambda | event source mapping, visibility timeout, async processing | [17-sqs-basics](labs/17-sqs-basics) |
+Use `labs/` for smaller experiments and concept practice.
 
-## End-to-end labs
+Typical lab flow:
 
-| Lab | AWS service(s) | Main concepts | Link |
-|---|---|---|---|
-| ecs-fargate | ECS, Fargate, ALB, RDS, ECR, IAM, Secrets Manager, VPC | private services, ALB path routing, private RDS, task roles, one-off migrations | [infra/ecs-fargate](infra/ecs-fargate) |
+```sh
+cd labs/<lab-name>
+../../tools/tf.sh init
+../../tools/tf.sh plan
+```
 
-## Notes
+Many labs were designed for local Floci.
 
-- Local Floci behavior can differ from AWS.
-- Review IAM, networking, and cost before pointing any lab at real AWS.
-- CI only runs static Terraform checks. It does not prove end-to-end runtime behavior.
+## Infrastructure
+
+Use `infra/` for the current shared AWS setup.
+
+Current Terraform roots:
+
+- `infra/bootstrap/terraform`
+  - state bucket protections
+  - GitHub OIDC provider
+  - global PR plan role `github-actions-terraform-plan`
+  - workload-specific apply identities
+- `infra/ecs-fargate/terraform`
+  - ECS Fargate workload resources
+  - workload-specific deploy policy and attachment
+
+Supported environments:
+
+- `dev`
+- `stage`
+- `prod`
+
+GitHub Actions variables:
+
+- repository variable: `AWS_TERRAFORM_PLAN_ROLE_ARN`
+- environment variable: `AWS_ECS_FARGATE_TERRAFORM_APPLY_ROLE_ARN`
+
+ECS helper:
+
+```sh
+cd infra/ecs-fargate
+../../scripts/tf-ecs.sh dev fmt
+../../scripts/tf-ecs.sh dev validate
+../../scripts/tf-ecs.sh dev plan -var frontend_image_tag=bootstrap -var backend_image_tag=bootstrap
+```
+
+Bootstrap runs directly from `infra/bootstrap/terraform` with `terraform`.
+
+## Infra docs
+
+- [Bootstrap](infra/bootstrap/terraform/README.md)
+- [ECS Fargate](infra/ecs-fargate/README.md)

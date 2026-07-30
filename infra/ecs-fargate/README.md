@@ -1,82 +1,61 @@
 # ECS Fargate Terraform
 
-Terraform for a Todo app on ECS Fargate behind an ALB with a private PostgreSQL RDS database.
+Terraform for an ECS Fargate workload behind an ALB with private PostgreSQL on RDS.
 
 ## Ownership
 
-- `infra/bootstrap/terraform` owns the shared state bucket protections, GitHub OIDC provider, and global pull-request plan role.
-- `infra/ecs-fargate/terraform` owns the environment-specific apply role and all workload infrastructure for this stack.
+`infra/ecs-fargate/terraform` owns:
 
-## Architecture
-
-```mermaid
-flowchart TD
-    Client[Browser] --> ALB[Application Load Balancer]
-    ALB -->|Default traffic| FrontendTG[Frontend Target Group]
-    ALB -->|/api and /api/*| BackendTG[Backend Target Group]
-    FrontendTG --> Frontend[ECS Fargate Frontend]
-    BackendTG --> Backend[ECS Fargate Backend]
-    Backend --> Secret[Secrets Manager]
-    Backend --> RDS[(Private RDS PostgreSQL)]
-    Migration[One-off Migration Task] --> Secret
-    Migration --> RDS
-```
-
-High level:
-
-- public ALB
-- private frontend and backend tasks
-- private RDS
-- one migration task
-- ECR repos for frontend and backend
+- VPC, subnets, routing, NAT, security groups
+- ALB, listeners, target groups
+- ECS cluster, task definitions, services
+- ECR repositories
 - CloudWatch log groups
+- RDS and related secrets usage
+- workload IAM roles
+- deploy policy `ecs-fargate-<env>-github-actions-deploy`
+- attachment of that deploy policy to the bootstrap-owned apply role
 
-Network rules:
+`infra/bootstrap/terraform` owns:
 
-- `0.0.0.0/0 -> ALB :80`
-- `ALB -> frontend :80`
-- `ALB -> backend :3001`
-- `backend -> RDS :5432`
+- GitHub OIDC provider
+- global PR plan role
+- apply role `github-actions-ecs-fargate-<env>-terraform`
+- apply policy and its attachment
 
-The ECS tasks run in private subnets without public IPs. Outbound access goes through NAT gateways. RDS stays in isolated DB subnets.
+## Environments
 
-## Database
+Supported environments:
 
-The backend reads DB credentials from Secrets Manager using the backend task role. Terraform does not store a full connection string.
+- `dev`
+- `stage`
+- `prod`
 
-Required ECS env values:
+Terraform state key pattern:
 
-```text
-DB_SECRET_ARN
-DB_HOST
-DB_PORT
-DB_NAME
-```
+- `aws-terraform-labs/ecs-fargate/<env>/terraform.tfstate`
 
-## Migrations
+GitHub Actions environment variable required per environment:
 
-Each release can run a one-off migration task before the backend service is updated.
-
-Flow:
-
-```text
-Build image -> update migration task definition -> run migration -> verify exit code 0 -> deploy backend
-```
+- `AWS_ECS_FARGATE_TERRAFORM_APPLY_ROLE_ARN=arn:aws:iam::455394301478:role/github-actions-ecs-fargate-<env>-terraform`
 
 ## Wrapper
 
-Run the wrapper from the stack directory so `environment` and backend key stay aligned.
-
-```sh
-../../scripts/tf-ecs.sh <dev|stage|prod> <terraform-command> [args...]
-```
-
-From `infra/ecs-fargate`:
+Run from `infra/ecs-fargate`:
 
 ```sh
 ../../scripts/tf-ecs.sh dev fmt
 ../../scripts/tf-ecs.sh dev validate
+../../scripts/tf-ecs.sh dev plan -var frontend_image_tag=bootstrap -var backend_image_tag=bootstrap
+../../scripts/tf-ecs.sh dev apply -var frontend_image_tag=bootstrap -var backend_image_tag=bootstrap
+../../scripts/tf-ecs.sh dev destroy -var frontend_image_tag=bootstrap -var backend_image_tag=bootstrap
 ```
+
+Behavior:
+
+- `fmt`: no init, no environment var injection
+- `validate`: runs init, no `-var`
+- `plan|apply|destroy|refresh`: runs init and adds `-var="environment=<env>"`
 
 ## First run
 
@@ -92,141 +71,18 @@ Create ECR first:
   -var backend_image_tag=bootstrap
 ```
 
-Read the ECR URLs:
-
-```sh
-FRONTEND_REPO="$(terraform -chdir=terraform output -raw frontend_ecr_repository_url)"
-BACKEND_REPO="$(terraform -chdir=terraform output -raw backend_ecr_repository_url)"
-REGISTRY_HOST="$(printf '%s\n' "$BACKEND_REPO" | cut -d/ -f1)"
-```
-
-Log in and push images:
-
-```sh
-aws ecr get-login-password --region eu-north-1 \
-  | docker login --username AWS --password-stdin "$REGISTRY_HOST"
-
-docker build -f ../../apps/todo/frontend/Dockerfile -t "$FRONTEND_REPO:v1" ../../apps/todo
-docker push "$FRONTEND_REPO:v1"
-
-docker build -f ../../apps/todo/backend/Dockerfile -t "$BACKEND_REPO:v1" ../../apps/todo
-docker push "$BACKEND_REPO:v1"
-```
-
-Create infrastructure with service counts at `0`:
-
-```sh
-../../scripts/tf-ecs.sh dev plan \
-  -var frontend_image_tag=v1 \
-  -var backend_image_tag=v1 \
-  -var backend_migration_image_tag=v1 \
-  -var frontend_desired_count=0 \
-  -var backend_desired_count=0
-
-../../scripts/tf-ecs.sh dev apply \
-  -var frontend_image_tag=v1 \
-  -var backend_image_tag=v1 \
-  -var backend_migration_image_tag=v1 \
-  -var frontend_desired_count=0 \
-  -var backend_desired_count=0
-```
-
-This first local apply also creates the workload's own GitHub Actions apply role.
-
-Run the migration:
-
-```sh
-AWS_REGION=eu-north-1 ../../scripts/run-ecs-migration.sh
-```
-
-Expected:
-
-```text
-Migration succeeded. taskArn=<task-arn> exitCode=0
-```
-
-Start the services:
-
-```sh
-../../scripts/tf-ecs.sh dev apply \
-  -var frontend_image_tag=v1 \
-  -var backend_image_tag=v1 \
-  -var backend_migration_image_tag=v1 \
-  -var frontend_desired_count=1 \
-  -var backend_desired_count=1
-```
-
-If you only want the infrastructure step in GitHub Actions, keep bootstrap image tags, keep desired counts at `0`, and run `.github/workflows/ecs-fargate-deploy.yml` with `skip_application=true`.
-
-## Later releases
-
-Run the migration with the new backend image before switching the backend service:
-
-```sh
-../../scripts/tf-ecs.sh dev apply \
-  -var frontend_image_tag=v1 \
-  -var backend_image_tag=v1 \
-  -var backend_migration_image_tag=v2 \
-  -var frontend_desired_count=1 \
-  -var backend_desired_count=1
-
-AWS_REGION=eu-north-1 ../../scripts/run-ecs-migration.sh
-
-../../scripts/tf-ecs.sh dev apply \
-  -var frontend_image_tag=v1 \
-  -var backend_image_tag=v2 \
-  -var backend_migration_image_tag=v2 \
-  -var frontend_desired_count=1 \
-  -var backend_desired_count=1
-```
-
-Wait for the backend service if needed:
-
-```sh
-aws ecs wait services-stable \
-  --region eu-north-1 \
-  --cluster "$(terraform -chdir=terraform output -raw ecs_cluster_name)" \
-  --services "$(terraform -chdir=terraform output -raw backend_ecs_service_name)"
-```
+Then push images and apply the rest of the stack.
 
 ## Verify
 
 ```sh
 curl "http://$(terraform -chdir=terraform output -raw alb_dns_name)/api/todos"
-aws logs tail "/ecs/todo-platform-fargate-dev/backend" --region eu-north-1
+aws logs tail "/ecs/ecs-fargate-dev/backend" --region eu-north-1
 ```
-
-Expected first API response:
-
-```text
-[]
-```
-
-Screenshots:
-
-- ![Todo frontend running on ECS Fargate](docs/todo-frontend.png)
-- ![Todo API response from private RDS](docs/todo-api.png)
 
 ## Notes
 
-- private, Single-AZ RDS
-- `multi_az = false`
-- `deletion_protection = false`
-- `skip_final_snapshot = true`
-- ALB uses HTTP only
+- DB app values stay workload-specific: `db_name=tododb`, `db_username=todouser`
+- RDS is private and currently single-AZ
+- ALB is HTTP only
 - NAT gateways and RDS cost money while running
-
-## Destroy
-
-Use the same image tags as the latest apply:
-
-```sh
-../../scripts/tf-ecs.sh dev destroy \
-  -var frontend_image_tag=v1 \
-  -var backend_image_tag=v1 \
-  -var backend_migration_image_tag=v1 \
-  -var frontend_desired_count=1 \
-  -var backend_desired_count=1
-```
-
-`force_delete = true` on ECR and `skip_final_snapshot = true` on RDS mean images and DB data can be lost permanently.
