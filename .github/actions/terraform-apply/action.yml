@@ -2,24 +2,23 @@ name: Terraform apply
 description: Run Terraform format, validate, and apply an exact saved plan
 
 inputs:
-  working-directory:
-    description: Terraform directory
+  terraform-directory:
     required: true
 
   terraform-version:
-    description: Terraform version
     required: false
     default: "1.12.2"
 
-  terraform-vars:
-    description: Terraform variables as a JSON object
+  terraform-vars-json:
     required: false
     default: "{}"
 
-  plan-file:
-    description: Terraform binary plan file name
+  terraform-plan-file:
     required: false
     default: tfplan
+
+  terraform-state-key:
+    required: true
 
 runs:
   using: composite
@@ -28,9 +27,9 @@ runs:
     - name: Validate inputs
       shell: bash
       env:
-        WORKING_DIRECTORY: ${{ inputs.working-directory }}
-        TERRAFORM_VARS: ${{ inputs.terraform-vars }}
-        PLAN_FILE: ${{ inputs.plan-file }}
+        WORKING_DIRECTORY: ${{ inputs.terraform-directory }}
+        TERRAFORM_VARS: ${{ inputs.terraform-vars-json }}
+        PLAN_FILE: ${{ inputs.terraform-plan-file }}
       run: |
         set -euo pipefail
 
@@ -54,25 +53,32 @@ runs:
 
     - name: Terraform format
       shell: bash
-      working-directory: ${{ inputs.working-directory }}
+      working-directory: ${{ inputs.terraform-directory }}
       run: terraform fmt -check -recursive
 
     - name: Terraform init
       shell: bash
-      working-directory: ${{ inputs.working-directory }}
-      run: terraform init -input=false
+      working-directory: ${{ inputs.terraform-directory }}
+      env:
+        TERRAFORM_BACKEND_KEY: ${{ inputs.terraform-state-key }}
+      run: |
+        set -euo pipefail
+
+        terraform init \
+          -input=false \
+          -backend-config="key=$TERRAFORM_BACKEND_KEY"
 
     - name: Terraform validate
       shell: bash
-      working-directory: ${{ inputs.working-directory }}
+      working-directory: ${{ inputs.terraform-directory }}
       run: terraform validate
 
     - name: Terraform apply
       shell: bash
-      working-directory: ${{ inputs.working-directory }}
+      working-directory: ${{ inputs.terraform-directory }}
       env:
-        TERRAFORM_VARS: ${{ inputs.terraform-vars }}
-        PLAN_FILE: ${{ inputs.plan-file }}
+        TERRAFORM_VARS: ${{ inputs.terraform-vars-json }}
+        PLAN_FILE: ${{ inputs.terraform-plan-file }}
       run: |
         set -euo pipefail
 

@@ -2,19 +2,19 @@ name: Terraform plan
 description: Run Terraform format, validate, and plan
 
 inputs:
-  working-directory:
-    description: Terraform directory
+  terraform-directory:
     required: true
 
   terraform-version:
-    description: Terraform version
     required: false
     default: "1.12.2"
 
-  terraform-vars:
-    description: Terraform variables as a JSON object
+  terraform-vars-json:
     required: false
     default: "{}"
+
+  terraform-state-key:
+    required: true
 
 outputs:
   plan:
@@ -32,8 +32,8 @@ runs:
     - name: Validate inputs
       shell: bash
       env:
-        WORKING_DIRECTORY: ${{ inputs.working-directory }}
-        TERRAFORM_VARS: ${{ inputs.terraform-vars }}
+        WORKING_DIRECTORY: ${{ inputs.terraform-directory }}
+        TERRAFORM_VARS: ${{ inputs.terraform-vars-json }}
       run: |
         set -euo pipefail
 
@@ -52,25 +52,32 @@ runs:
 
     - name: Terraform format
       shell: bash
-      working-directory: ${{ inputs.working-directory }}
+      working-directory: ${{ inputs.terraform-directory }}
       run: terraform fmt -check -recursive
 
     - name: Terraform init
       shell: bash
-      working-directory: ${{ inputs.working-directory }}
-      run: terraform init -input=false
+      working-directory: ${{ inputs.terraform-directory }}
+      env:
+        TERRAFORM_BACKEND_KEY: ${{ inputs.terraform-state-key }}
+      run: |
+        set -euo pipefail
+
+        terraform init \
+          -input=false \
+          -backend-config="key=$TERRAFORM_BACKEND_KEY"
 
     - name: Terraform validate
       shell: bash
-      working-directory: ${{ inputs.working-directory }}
+      working-directory: ${{ inputs.terraform-directory }}
       run: terraform validate
 
     - name: Terraform plan
       id: plan
       shell: bash
-      working-directory: ${{ inputs.working-directory }}
+      working-directory: ${{ inputs.terraform-directory }}
       env:
-        TERRAFORM_VARS: ${{ inputs.terraform-vars }}
+        TERRAFORM_VARS: ${{ inputs.terraform-vars-json }}
       run: |
         set -euo pipefail
 
