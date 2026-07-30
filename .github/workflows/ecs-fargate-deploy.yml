@@ -24,6 +24,7 @@ permissions:
 
 env:
   TERRAFORM_ENVIRONMENT: ${{ inputs.environment }}
+  PROJECT_NAME: ecs-fargate
 
 concurrency:
   group: ecs-fargate-${{ inputs.environment }}-deploy
@@ -61,7 +62,7 @@ jobs:
         with:
           terraform-directory: ${{ env.TERRAFORM_DIRECTORY }}
           terraform-version: ${{ env.TERRAFORM_VERSION }}
-          terraform-state-key: ${{ format('aws-terraform-labs/ecs-fargate/{0}/terraform.tfstate', env.TERRAFORM_ENVIRONMENT) }}
+          terraform-state-key: ${{ format('aws-terraform-labs/{0}/{1}/terraform.tfstate', env.PROJECT_NAME, env.TERRAFORM_ENVIRONMENT) }}
           terraform-vars-json: >-
             {
               "environment": "${{ env.TERRAFORM_ENVIRONMENT }}",
@@ -105,7 +106,7 @@ jobs:
         with:
           terraform-directory: ${{ env.TERRAFORM_DIRECTORY }}
           terraform-version: ${{ env.TERRAFORM_VERSION }}
-          terraform-state-key: ${{ format('aws-terraform-labs/ecs-fargate/{0}/terraform.tfstate', env.TERRAFORM_ENVIRONMENT) }}
+          terraform-state-key: ${{ format('aws-terraform-labs/{0}/{1}/terraform.tfstate', env.PROJECT_NAME, env.TERRAFORM_ENVIRONMENT) }}
 
       - name: Resolve deployment values
         id: deployment-values

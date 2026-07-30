@@ -17,6 +17,7 @@ env:
   TERRAFORM_VERSION: "1.12.2"
   TERRAFORM_DIRECTORY: infra/ecs-fargate/terraform
   PROJECT_NAME: ecs-fargate
+  TERRAFORM_STATE_BUCKET: ${{ vars.TERRAFORM_STATE_BUCKET }}
 
 jobs:
   terraform-plan:
@@ -45,6 +46,9 @@ jobs:
         id: terraform-state
         working-directory: ${{ env.TERRAFORM_DIRECTORY }}
         shell: bash
+        env:
+          TERRAFORM_STATE_BUCKET: ${{ env.TERRAFORM_STATE_BUCKET }}
+          PROJECT_NAME: ${{ env.PROJECT_NAME }}
         run: |
           set -euo pipefail
 
@@ -57,7 +61,7 @@ jobs:
           FRONTEND_IMAGE_TAG="bootstrap"
 
           if aws s3 cp \
-            "s3://455394301478-terraform-state-s3/aws-terraform-labs/ecs-fargate/${{ matrix.environment }}/terraform.tfstate" \
+            "s3://${TERRAFORM_STATE_BUCKET}/aws-terraform-labs/${PROJECT_NAME}/${{ matrix.environment }}/terraform.tfstate" \
             terraform-state.json \
             >/dev/null 2>&1; then
             get_image_tag() {
@@ -106,7 +110,7 @@ jobs:
         with:
           terraform-directory: ${{ env.TERRAFORM_DIRECTORY }}
           terraform-version: ${{ env.TERRAFORM_VERSION }}
-          terraform-state-key: ${{ format('aws-terraform-labs/ecs-fargate/{0}/terraform.tfstate', matrix.environment) }}
+          terraform-state-key: ${{ format('aws-terraform-labs/{0}/{1}/terraform.tfstate', env.PROJECT_NAME, matrix.environment) }}
           terraform-vars-json: >-
             {
               "environment": "${{ matrix.environment }}",
