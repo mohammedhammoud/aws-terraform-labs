@@ -36,6 +36,10 @@ The frontend is intentionally deployed as a separate ECS service in this lab to 
 
 RDS runs in separate private database subnets and is only reachable from the backend security group.
 
+![Frontend service](docs/frontend.png)
+
+![Backend service](docs/backend.png)
+
 ## Main resources
 
 - VPC across two availability zones
@@ -122,6 +126,8 @@ If the new task repeatedly fails to start or does not pass its health check:
 This allows the old release to continue serving traffic while the new release is being validated.
 
 The rollback behavior was tested by temporarily changing the backend `/health` endpoint to return HTTP `500`. The ALB marked the new target unhealthy, ECS retried the task, the deployment failed, and the previous healthy release continued serving traffic.
+
+![ECS deployment rollback](docs/rollback.png)
 
 ## Terraform state
 
