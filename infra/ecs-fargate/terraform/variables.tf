@@ -114,4 +114,7 @@ variable "db_instance_class" {
   default = "db.t3.micro"
 }
 
-
+variable "sns_email" {
+  type      = string
+  sensitive = true
+}

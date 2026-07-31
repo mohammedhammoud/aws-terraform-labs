@@ -3,7 +3,6 @@ locals {
   apply_role_name             = "github-actions-${var.project_name}-${var.environment}-terraform"
   az_count                    = length(var.availability_zones)
   backend_migration_image_tag = coalesce(var.backend_migration_image_tag, var.backend_image_tag)
-
   ecr_lifecycle_policy = jsonencode({
     rules = [
       {
@@ -18,4 +17,8 @@ locals {
       }
     ]
   })
+  cloudwatch_target_groups = {
+    backend  = aws_lb_target_group.backend
+    frontend = aws_lb_target_group.frontend
+  }
 }

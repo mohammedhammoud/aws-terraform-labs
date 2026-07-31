@@ -47,7 +47,7 @@ resource "aws_ecs_task_definition" "backend" {
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          awslogs-group         = aws_cloudwatch_log_group.backend.name
+          awslogs-group         = aws_cloudwatch_log_group.ecs["backend"].name
           awslogs-region        = var.region
           awslogs-stream-prefix = "backend"
         }
@@ -94,7 +94,7 @@ resource "aws_ecs_task_definition" "backend_migration" {
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          awslogs-group         = aws_cloudwatch_log_group.backend.name
+          awslogs-group         = aws_cloudwatch_log_group.ecs["backend"].name
           awslogs-region        = var.region
           awslogs-stream-prefix = "backend-migration"
         }
@@ -131,7 +131,7 @@ resource "aws_ecs_task_definition" "frontend" {
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          awslogs-group         = aws_cloudwatch_log_group.frontend.name
+          awslogs-group         = aws_cloudwatch_log_group.ecs["frontend"].name
           awslogs-region        = var.region
           awslogs-stream-prefix = "frontend"
         }
