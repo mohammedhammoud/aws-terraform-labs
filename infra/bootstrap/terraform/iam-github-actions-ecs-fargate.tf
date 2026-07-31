@@ -101,6 +101,43 @@ data "aws_iam_policy_document" "workload_github_actions_apply" {
   }
 
   statement {
+    sid = "CloudWatch"
+
+    actions = [
+      "cloudwatch:PutMetricAlarm",
+      "cloudwatch:DeleteAlarms",
+      "cloudwatch:DescribeAlarms",
+      "cloudwatch:PutDashboard",
+      "cloudwatch:DeleteDashboards",
+      "cloudwatch:GetDashboard",
+      "cloudwatch:ListTagsForResource",
+      "cloudwatch:TagResource",
+      "cloudwatch:UntagResource",
+    ]
+
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "Sns"
+
+    actions = [
+      "sns:CreateTopic",
+      "sns:DeleteTopic",
+      "sns:GetSubscriptionAttributes",
+      "sns:GetTopicAttributes",
+      "sns:ListTagsForResource",
+      "sns:SetTopicAttributes",
+      "sns:Subscribe",
+      "sns:TagResource",
+      "sns:UntagResource",
+      "sns:Unsubscribe",
+    ]
+
+    resources = ["*"]
+  }
+
+  statement {
     sid = "Rds"
 
     actions   = ["rds:*"]
