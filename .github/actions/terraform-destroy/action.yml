@@ -1,0 +1,101 @@
+name: Terraform destroy
+description: Run Terraform format, validate, and destroy an exact saved plan
+
+inputs:
+  terraform-directory:
+    required: true
+
+  terraform-version:
+    required: false
+    default: "1.12.2"
+
+  terraform-vars-json:
+    required: false
+    default: "{}"
+
+  terraform-plan-file:
+    required: false
+    default: tfdestroy
+
+  terraform-state-key:
+    required: true
+
+runs:
+  using: composite
+
+  steps:
+    - name: Validate inputs
+      shell: bash
+      env:
+        WORKING_DIRECTORY: ${{ inputs.terraform-directory }}
+        TERRAFORM_VARS: ${{ inputs.terraform-vars-json }}
+        PLAN_FILE: ${{ inputs.terraform-plan-file }}
+      run: |
+        set -euo pipefail
+
+        if [[ ! -d "$WORKING_DIRECTORY" ]]; then
+          echo "Terraform working directory not found: $WORKING_DIRECTORY" >&2
+          exit 1
+        fi
+
+        if [[ ! "$PLAN_FILE" =~ ^[A-Za-z0-9._-]+$ ]]; then
+          echo "Invalid Terraform plan file name: $PLAN_FILE" >&2
+          exit 1
+        fi
+
+        jq -e 'type == "object" and all(keys[]; length > 0)' <<< "$TERRAFORM_VARS" > /dev/null
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ inputs.terraform-version }}
+        terraform_wrapper: false
+
+    - name: Terraform format
+      shell: bash
+      working-directory: ${{ inputs.terraform-directory }}
+      run: terraform fmt -check -recursive
+
+    - name: Terraform init
+      shell: bash
+      working-directory: ${{ inputs.terraform-directory }}
+      env:
+        TERRAFORM_BACKEND_KEY: ${{ inputs.terraform-state-key }}
+      run: |
+        set -euo pipefail
+
+        terraform init \
+          -input=false \
+          -backend-config="key=$TERRAFORM_BACKEND_KEY"
+
+    - name: Terraform validate
+      shell: bash
+      working-directory: ${{ inputs.terraform-directory }}
+      run: terraform validate
+
+    - name: Terraform destroy
+      shell: bash
+      working-directory: ${{ inputs.terraform-directory }}
+      env:
+        TERRAFORM_VARS: ${{ inputs.terraform-vars-json }}
+        PLAN_FILE: ${{ inputs.terraform-plan-file }}
+      run: |
+        set -euo pipefail
+
+        trap 'rm -f -- "$PLAN_FILE"' EXIT
+
+        mapfile -d '' -t var_args < <(
+          jq -rj 'to_entries[] | "-var=\(.key)=\(.value | tostring)\u0000"' <<< "$TERRAFORM_VARS"
+        )
+
+        terraform plan \
+          -destroy \
+          -input=false \
+          -no-color \
+          -out="$PLAN_FILE" \
+          "${var_args[@]}"
+
+        terraform apply \
+          -input=false \
+          -no-color \
+          "$PLAN_FILE"
