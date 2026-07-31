@@ -5,7 +5,7 @@ import { getIsShuttingDown } from '../lib/readiness.js';
 
 export const healthRoutes: FastifyPluginAsync = async (app) => {
   app.get('/health', async (_request, reply) => {
-    return reply.code(200).send({ status: 'ok' });
+    return reply.code(500).send({ status: 'broken' });
   });
 
   app.get('/ready', async (_request, reply) => {
