@@ -46,7 +46,7 @@ runs:
         jq -e 'type == "object" and all(keys[]; length > 0)' <<< "$TERRAFORM_VARS" > /dev/null
 
     - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
+      uses: hashicorp/setup-terraform@v4.0.1
       with:
         terraform_version: ${{ inputs.terraform-version }}
         terraform_wrapper: false
