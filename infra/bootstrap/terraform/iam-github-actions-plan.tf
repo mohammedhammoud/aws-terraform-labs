@@ -93,6 +93,7 @@ data "aws_iam_policy_document" "github_actions_plan" {
       "iam:GetPolicy",
       "iam:GetPolicyVersion",
       "iam:ListAttachedRolePolicies",
+      "iam:ListInstanceProfilesForRole",
       "iam:ListOpenIDConnectProviders",
       "iam:ListPolicyVersions",
       "iam:ListRolePolicies",
