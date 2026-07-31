@@ -81,6 +81,7 @@ data "aws_iam_policy_document" "github_actions_plan" {
       "ecs:Describe*",
       "ecs:List*",
       "ecr:Describe*",
+      "ecr:GetLifecyclePolicy",
       "ecr:ListTagsForResource",
       "ecr:GetAuthorizationToken",
       "ecr:BatchGetImage",
