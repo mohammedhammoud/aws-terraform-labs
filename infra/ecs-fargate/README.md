@@ -183,6 +183,8 @@ The unhealthy-target metric can also show failed deployment attempts while ECS s
 
 ECS deployment details and rollback progress are available through the service deployment timeline and service events.
 
+![CloudWatch dashboard](docs/cloudwatch.png)
+
 ## Security
 
 The stack includes several basic security controls:
