@@ -1,60 +1,74 @@
 # Bootstrap Terraform
 
-This root owns shared GitHub-to-AWS access and shared Terraform state protections.
+Shared Terraform root for state, GitHub OIDC, and CI identities used by the AWS stacks in `infra/`.
 
-## Owns
+## Architecture
 
-- state bucket `455394301478-terraform-state-s3`
-- bucket versioning, encryption, public access block, HTTPS-only policy
+Bootstrap is run locally. First run creates the state bucket and IAM setup. After that, the same root uses S3 remote state.
+
+```mermaid
+flowchart LR
+  A[Local Terraform] --> B[S3 remote state]
+  A --> C[GitHub OIDC provider]
+  A --> D[Global PR plan role]
+  A --> E[Environment-specific apply roles]
+```
+
+## Resources
+
+- S3 bucket for Terraform remote state
 - GitHub OIDC provider
-- global PR plan role `github-actions-terraform-plan`
-- workload-specific GitHub Actions apply identities
-  - role
-  - OIDC trust policy
-  - Terraform apply policy
-  - attachment between the role and apply policy
+- Global GitHub Actions plan role for pull requests
+- Environment-specific GitHub Actions apply roles for `dev`, `stage`, and `prod`
 
-Current workload apply role naming:
+## Ownership
 
-- `github-actions-ecs-fargate-<env>-terraform`
+Bootstrap owns shared platform pieces:
 
-Supported environments:
+- state bucket
+- OIDC provider
+- CI identities used by GitHub Actions
 
-- `dev`
-- `stage`
-- `prod`
+Workload stacks own their own application resources and any workload-specific deploy permissions.
 
-## Does not own
+## Deploy
 
-- ECS Fargate workload resources
-- workload-specific deploy policies
-- deploy-policy attachments managed by workload roots
-
-## Commands
-
-From `infra/bootstrap/terraform`:
+First local run:
 
 ```sh
-terraform init -reconfigure -input=false
-terraform validate
+cd infra/bootstrap/terraform
+terraform init -backend=false
+terraform apply
+terraform init -reconfigure -migrate-state
+```
+
+Normal local runs after migration:
+
+```sh
+cd infra/bootstrap/terraform
+terraform init -input=false
 terraform plan
 terraform apply
+```
+
+Set GitHub variables from outputs:
+
+```sh
 terraform output -raw github_actions_plan_role_arn
 terraform output -json ecs_fargate_github_actions_apply_role_arns
 ```
 
-## Outputs
+Use them as:
 
-Repository variable:
+- repository variable: `AWS_TERRAFORM_PLAN_ROLE_ARN`
+- environment variable: `AWS_ECS_FARGATE_TERRAFORM_APPLY_ROLE_ARN`
+
+## Destroy
+
+Destroy workload stacks first.
+
+Bootstrap is a manual local teardown because it owns the remote-state bucket and shared CI access. Move bootstrap state off S3 before final destroy, then run:
 
 ```sh
-terraform output -raw github_actions_plan_role_arn
+terraform destroy
 ```
-
-GitHub Environment variables for ECS Fargate:
-
-```sh
-terraform output -json ecs_fargate_github_actions_apply_role_arns
-```
-
-Set `AWS_ECS_FARGATE_TERRAFORM_APPLY_ROLE_ARN` per environment from that output.
