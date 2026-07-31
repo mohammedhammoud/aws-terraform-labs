@@ -93,5 +93,6 @@ jobs:
               "backend_image_tag": "destroy",
               "frontend_image_tag": "destroy",
               "backend_desired_count": 0,
-              "frontend_desired_count": 0
+              "frontend_desired_count": 0,
+              "sns_email": "${{ secrets.SNS_EMAIL }}"
             }

@@ -117,7 +117,8 @@ jobs:
               "backend_image_tag": "${{ steps.terraform-state.outputs.backend-image-tag }}",
               "frontend_image_tag": "${{ steps.terraform-state.outputs.frontend-image-tag }}",
               "backend_desired_count": 0,
-              "frontend_desired_count": 0
+              "frontend_desired_count": 0,
+              "sns_email": "${{ secrets.SNS_EMAIL }}"
             }
 
       - name: Save plan result
