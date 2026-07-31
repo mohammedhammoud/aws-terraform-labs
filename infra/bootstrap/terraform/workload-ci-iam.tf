@@ -156,6 +156,7 @@ data "aws_iam_policy_document" "workload_github_actions_apply" {
       "iam:DeleteRolePolicy",
       "iam:DetachRolePolicy",
       "iam:GetRole",
+      "iam:GetRolePolicy",
       "iam:ListAttachedRolePolicies",
       "iam:ListRolePolicies",
       "iam:PutRolePolicy",
