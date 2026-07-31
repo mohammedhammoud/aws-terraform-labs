@@ -2,7 +2,7 @@
 
 Terraform stack for running the todo application on AWS ECS Fargate.
 
-The stack contains a frontend service, backend service, private PostgreSQL database, load balancer, deployment roles, logging, monitoring, and alarm notifications.
+The stack contains a frontend service, backend service, private PostgreSQL database, load balancer, deployment roles, logging, monitoring, alarm notifications, and automatic rollback for failed ECS deployments.
 
 GitHub Actions is the normal way to plan, deploy, and destroy the environment. Local Terraform commands are mainly used for debugging.
 
@@ -44,6 +44,7 @@ RDS runs in separate private database subnets and is only reachable from the bac
 - Application Load Balancer
 - Frontend and backend target groups
 - ECS Fargate cluster and services
+- ECS deployment circuit breakers with rollback
 - Frontend and backend ECR repositories
 - One-off backend migration task definition
 - Private PostgreSQL RDS instance
@@ -94,6 +95,34 @@ The deployment process builds the application images, pushes them to ECR, runs d
 
 Terraform creates the initial ECS task definitions. Later application deployments manage new task definition revisions.
 
+The deployment workflow waits for both ECS services to reach a stable state:
+
+```sh
+aws ecs wait services-stable
+```
+
+If either service fails to stabilize, the workflow exits with an error.
+
+## Deployment rollback
+
+Both ECS services use the deployment circuit breaker with automatic rollback enabled.
+
+During a rolling deployment, the previous healthy task remains available while ECS starts and validates the new task.
+
+The backend target group checks the `/health` endpoint and expects an HTTP `200` response.
+
+If the new task repeatedly fails to start or does not pass its health check:
+
+1. The target is marked unhealthy.
+2. ECS stops the failed task and retries the deployment.
+3. The circuit breaker eventually marks the deployment as failed.
+4. ECS stops deploying the broken revision.
+5. The previous stable task definition remains active or is restored.
+
+This allows the old release to continue serving traffic while the new release is being validated.
+
+The rollback behavior was tested by temporarily changing the backend `/health` endpoint to return HTTP `500`. The ALB marked the new target unhealthy, ECS retried the task, the deployment failed, and the previous healthy release continued serving traffic.
+
 ## Terraform state
 
 Bootstrap and workload infrastructure use separate Terraform states.
@@ -143,6 +172,10 @@ The CloudWatch dashboard includes:
 - Current alarm status
 
 CloudWatch alarms send notifications through an SNS email subscription.
+
+The unhealthy-target metric can also show failed deployment attempts while ECS starts and validates new tasks.
+
+ECS deployment details and rollback progress are available through the service deployment timeline and service events.
 
 ## Security
 
@@ -212,6 +245,21 @@ The CloudWatch dashboard is named:
 ```text
 ecs-fargate-dev-dashboard
 ```
+
+A successful deployment should end with:
+
+- Healthy targets in both target groups
+- Stable frontend and backend ECS services
+- No active CloudWatch alarms
+- The latest task definition revision running
+
+A failed deployment should show:
+
+- Unhealthy new targets
+- Health check failures in ECS service events
+- A failed deployment in the ECS deployment timeline
+- Circuit breaker rollback activity
+- The previous healthy revision remaining active
 
 ## Destroy
 
