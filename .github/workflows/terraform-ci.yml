@@ -8,8 +8,8 @@ jobs:
   fmt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
+      - uses: actions/checkout@v7.0.1
+      - uses: hashicorp/setup-terraform@v4.0.1
       - run: terraform fmt -check -recursive
 
   discover:
@@ -17,7 +17,7 @@ jobs:
     outputs:
       terraform_dirs: ${{ steps.discover.outputs.terraform_dirs }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
       - id: discover
         run: |
           terraform_dirs=$(find labs infra -mindepth 2 -maxdepth 2 -type d -name terraform | sort | jq -R -s -c 'split("\n")[:-1]')
@@ -39,7 +39,7 @@ jobs:
       run:
         working-directory: ${{ matrix.terraform_dir }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
+      - uses: actions/checkout@v7.0.1
+      - uses: hashicorp/setup-terraform@v4.0.1
       - run: terraform init -backend=false
       - run: terraform validate
