@@ -1,0 +1,236 @@
+name: ECS EC2 PR Check
+
+on:
+  pull_request:
+    paths:
+      - "infra/ecs-ec2/**"
+      - ".github/actions/terraform-plan/**"
+      - ".github/actions/terraform-pr-comment/**"
+      - ".github/workflows/ecs-ec2-pr-check.yml"
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: eu-north-1
+  TERRAFORM_VERSION: "1.12.2"
+  TERRAFORM_DIRECTORY: infra/ecs-ec2/terraform
+  PROJECT_NAME: ecs-ec2
+  TERRAFORM_STATE_BUCKET: ${{ vars.TERRAFORM_STATE_BUCKET }}
+
+jobs:
+  terraform-plan:
+    name: Terraform plan (${{ matrix.environment }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment:
+          - dev
+          # - stage
+          # - prod
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: ${{ vars.AWS_TERRAFORM_PLAN_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: terraform-plan-${{ matrix.environment }}
+
+      - name: Resolve image tags
+        id: terraform-state
+        working-directory: ${{ env.TERRAFORM_DIRECTORY }}
+        shell: bash
+        env:
+          TERRAFORM_STATE_BUCKET: ${{ env.TERRAFORM_STATE_BUCKET }}
+          PROJECT_NAME: ${{ env.PROJECT_NAME }}
+        run: |
+          set -euo pipefail
+
+          cleanup() {
+            rm -f -- terraform-state.json
+          }
+          trap cleanup EXIT
+
+          BACKEND_IMAGE_TAG="bootstrap"
+          FRONTEND_IMAGE_TAG="bootstrap"
+
+          if aws s3 cp \
+            "s3://${TERRAFORM_STATE_BUCKET}/aws-terraform-labs/${PROJECT_NAME}/${{ matrix.environment }}/terraform.tfstate" \
+            terraform-state.json \
+            >/dev/null 2>&1; then
+            get_image_tag() {
+              local resource_type="$1"
+              local resource_name="$2"
+              local image
+
+              image="$(
+                jq -r \
+                  --arg type "$resource_type" \
+                  --arg name "$resource_name" \
+                  '
+                    .resources[]?
+                    | select(.type == $type and .name == $name)
+                    | .instances[0].attributes.container_definitions
+                    | fromjson
+                    | .[0].image
+                  ' \
+                  terraform-state.json
+              )"
+
+              if [[ -n "$image" && "$image" != "null" ]]; then
+                echo "${image##*:}"
+              fi
+            }
+
+            STATE_BACKEND_IMAGE_TAG="$(get_image_tag "aws_ecs_task_definition" "backend" || true)"
+            STATE_FRONTEND_IMAGE_TAG="$(get_image_tag "aws_ecs_task_definition" "frontend" || true)"
+
+            if [[ -n "$STATE_BACKEND_IMAGE_TAG" ]]; then
+              BACKEND_IMAGE_TAG="$STATE_BACKEND_IMAGE_TAG"
+            fi
+
+            if [[ -n "$STATE_FRONTEND_IMAGE_TAG" ]]; then
+              FRONTEND_IMAGE_TAG="$STATE_FRONTEND_IMAGE_TAG"
+            fi
+          fi
+
+          echo "backend-image-tag=$BACKEND_IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          echo "frontend-image-tag=$FRONTEND_IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Terraform plan
+        id: terraform-plan
+        continue-on-error: true
+        uses: ./.github/actions/terraform-plan
+        with:
+          terraform-directory: ${{ env.TERRAFORM_DIRECTORY }}
+          terraform-version: ${{ env.TERRAFORM_VERSION }}
+          terraform-state-key: ${{ format('aws-terraform-labs/{0}/{1}/terraform.tfstate', env.PROJECT_NAME, matrix.environment) }}
+          terraform-vars-json: >-
+            {
+              "environment": "${{ matrix.environment }}",
+              "backend_image_tag": "${{ steps.terraform-state.outputs.backend-image-tag }}",
+              "frontend_image_tag": "${{ steps.terraform-state.outputs.frontend-image-tag }}",
+              "backend_desired_count": 0,
+              "frontend_desired_count": 0,
+              "sns_email": "${{ secrets.SNS_EMAIL }}"
+            }
+
+      - name: Save plan result
+        if: always()
+        shell: bash
+        env:
+          ENVIRONMENT: ${{ matrix.environment }}
+          EXIT_CODE: ${{ steps.terraform-plan.outputs.exit-code }}
+          PLAN_OUTPUT: ${{ steps.terraform-plan.outputs.plan }}
+        run: |
+          set -euo pipefail
+
+          jq -n \
+            --arg environment "$ENVIRONMENT" \
+            --arg exit_code "${EXIT_CODE:-1}" \
+            --arg plan "$PLAN_OUTPUT" \
+            '{environment: $environment, exit_code: $exit_code, plan: $plan}' \
+            > "terraform-plan-${ENVIRONMENT}.json"
+
+      - name: Upload plan result
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: terraform-plan-${{ matrix.environment }}
+          path: terraform-plan-${{ matrix.environment }}.json
+
+      - name: Fail on plan error
+        if: always()
+        shell: bash
+        env:
+          EXIT_CODE: ${{ steps.terraform-plan.outputs.exit-code }}
+        run: |
+          set -euo pipefail
+
+          case "${EXIT_CODE:-1}" in
+            0|2) ;;
+            *) exit 1 ;;
+          esac
+
+  terraform-plan-comment:
+    name: Comment Terraform plans
+    if: always()
+    needs: terraform-plan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Download plan results
+        uses: actions/download-artifact@v8.0.1
+        with:
+          pattern: terraform-plan-*
+          merge-multiple: true
+
+      - name: Create or update Terraform plan comment
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PROJECT_NAME: ${{ env.PROJECT_NAME }}
+        run: |
+          set -euo pipefail
+
+          marker="<!-- terraform-plan:${PROJECT_NAME} -->"
+
+          {
+            echo "$marker"
+            echo "## Terraform plans: ${PROJECT_NAME}"
+            echo
+          } > comment.md
+
+          overall_failed=0
+
+          while IFS= read -r file; do
+            environment="$(jq -r '.environment' "$file")"
+            exit_code="$(jq -r '.exit_code' "$file")"
+            plan="$(jq -r '.plan' "$file")"
+
+            case "$exit_code" in
+              0) status="✅ No changes" ;;
+              2) status="⚠️ Changes detected" ;;
+              *) status="❌ Plan failed"; overall_failed=1 ;;
+            esac
+
+            {
+              echo "### ${environment}"
+              echo
+              echo "**Status:** ${status}"
+              echo
+              echo "<details>"
+              echo "<summary>Show plan</summary>"
+              echo
+              echo '```terraform'
+              echo "$plan"
+              echo '```'
+              echo
+              echo "</details>"
+              echo
+            } >> comment.md
+          done < <(find . -maxdepth 1 -name 'terraform-plan-*.json' | sort)
+
+          comment_id="$({ gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate --jq ".[] | select(.body | contains(\"${marker}\")) | .id" || true; } | head -n 1)"
+
+          jq -n --rawfile body comment.md '{body: $body}' > payload.json
+
+          if [[ -n "$comment_id" ]]; then
+            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" --input payload.json
+          else
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --input payload.json
+          fi
+
+          if [[ "$overall_failed" -ne 0 ]]; then
+            exit 1
+          fi

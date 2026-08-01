@@ -1,0 +1,98 @@
+name: ECS EC2 Destroy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        default: dev
+        options:
+          - dev
+          # - stage
+          # - prod
+      confirm_environment:
+        description: Type the environment name again to confirm
+        required: true
+        type: string
+      confirm_destroy:
+        description: Type DESTROY to confirm
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  PROJECT_NAME: ecs-ec2
+  TERRAFORM_ENVIRONMENT: ${{ inputs.environment }}
+  TERRAFORM_STATE_BUCKET: ${{ vars.TERRAFORM_STATE_BUCKET }}
+
+concurrency:
+  group: ecs-ec2-${{ inputs.environment }}-destroy
+  cancel-in-progress: false
+
+jobs:
+  destroy:
+    name: Destroy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ inputs.environment }}
+    env:
+      AWS_REGION: eu-north-1
+      TERRAFORM_DIRECTORY: infra/ecs-ec2/terraform
+      TERRAFORM_VERSION: "1.12.2"
+
+    steps:
+      - name: Validate confirmation
+        shell: bash
+        env:
+          TARGET_ENVIRONMENT: ${{ inputs.environment }}
+          CONFIRM_ENVIRONMENT: ${{ inputs.confirm_environment }}
+          CONFIRM_DESTROY: ${{ inputs.confirm_destroy }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$CONFIRM_ENVIRONMENT" != "$TARGET_ENVIRONMENT" ]]; then
+            echo "Confirmation environment mismatch" >&2
+            exit 1
+          fi
+
+          if [[ "$CONFIRM_DESTROY" != "DESTROY" ]]; then
+            echo "Confirmation text must be DESTROY" >&2
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: ${{ vars.AWS_ECS_EC2_TERRAFORM_APPLY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: terraform-destroy
+
+      - name: Verify assumed identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws sts get-caller-identity
+
+      - name: Terraform destroy
+        uses: ./.github/actions/terraform-destroy
+        with:
+          terraform-directory: ${{ env.TERRAFORM_DIRECTORY }}
+          terraform-version: ${{ env.TERRAFORM_VERSION }}
+          terraform-state-key: ${{ format('aws-terraform-labs/{0}/{1}/terraform.tfstate', env.PROJECT_NAME, env.TERRAFORM_ENVIRONMENT) }}
+          terraform-vars-json: >-
+            {
+              "environment": "${{ env.TERRAFORM_ENVIRONMENT }}",
+              "backend_image_tag": "destroy",
+              "frontend_image_tag": "destroy",
+              "backend_desired_count": 0,
+              "frontend_desired_count": 0,
+              "sns_email": "${{ secrets.SNS_EMAIL }}"
+            }
