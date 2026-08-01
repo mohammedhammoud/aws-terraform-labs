@@ -145,7 +145,11 @@ resource "aws_ecs_service" "backend" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.backend.arn
   desired_count   = var.backend_desired_count
-  launch_type     = "EC2"
+
+  capacity_provider_strategy {
+    capacity_provider = aws_ecs_capacity_provider.ec2.name
+    weight            = 1
+  }
 
   deployment_circuit_breaker {
     enable   = true
@@ -173,6 +177,7 @@ resource "aws_ecs_service" "backend" {
   }
 
   depends_on = [
+    aws_ecs_cluster_capacity_providers.main,
     aws_lb_listener_rule.backend,
     aws_iam_role_policy_attachment.ecs_task_execution,
     aws_iam_role_policy.backend_read_db_secret
@@ -188,7 +193,11 @@ resource "aws_ecs_service" "frontend" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.frontend.arn
   desired_count   = var.frontend_desired_count
-  launch_type     = "EC2"
+
+  capacity_provider_strategy {
+    capacity_provider = aws_ecs_capacity_provider.ec2.name
+    weight            = 1
+  }
 
   deployment_circuit_breaker {
     enable   = true
@@ -216,11 +225,37 @@ resource "aws_ecs_service" "frontend" {
   }
 
   depends_on = [
+    aws_ecs_cluster_capacity_providers.main,
     aws_lb_listener.http,
     aws_iam_role_policy_attachment.ecs_task_execution
   ]
 
   tags = {
     Name = "${local.name_prefix}-ecs-frontend"
+  }
+}
+
+resource "aws_ecs_capacity_provider" "ec2" {
+  name = "${local.name_prefix}-capacity-provider"
+
+  auto_scaling_group_provider {
+    auto_scaling_group_arn = aws_autoscaling_group.ecs.arn
+
+    managed_scaling {
+      status = "DISABLED"
+    }
+  }
+}
+
+resource "aws_ecs_cluster_capacity_providers" "main" {
+  cluster_name = aws_ecs_cluster.main.name
+
+  capacity_providers = [
+    aws_ecs_capacity_provider.ec2.name
+  ]
+
+  default_capacity_provider_strategy {
+    capacity_provider = aws_ecs_capacity_provider.ec2.name
+    weight            = 1
   }
 }
