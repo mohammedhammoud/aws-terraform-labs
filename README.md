@@ -20,7 +20,6 @@ infra/
     terraform/
 tools/
   tf.sh
-  tf-ecs.sh
 ```
 
 ## Labs
@@ -67,9 +66,9 @@ ECS helper:
 
 ```sh
 cd infra/ecs-fargate
-../../tools/tf-ecs.sh dev fmt
-../../tools/tf-ecs.sh dev validate
-../../tools/tf-ecs.sh dev plan -var frontend_image_tag=bootstrap -var backend_image_tag=bootstrap
+../../tools/tf.sh --env dev fmt
+../../tools/tf.sh --env dev validate
+../../tools/tf.sh --env dev plan -var frontend_image_tag=bootstrap -var backend_image_tag=bootstrap
 ```
 
 Bootstrap runs directly from `infra/bootstrap/terraform` with `terraform`.

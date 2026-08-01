@@ -210,14 +210,14 @@ Local Terraform commands can be run through the helper script:
 ```sh
 cd infra/ecs-fargate
 
-../../tools/tf-ecs.sh dev fmt
-../../tools/tf-ecs.sh dev validate
+../../tools/tf.sh --env dev fmt
+../../tools/tf.sh --env dev validate
 
-../../tools/tf-ecs.sh dev plan \
+../../tools/tf.sh --env dev plan \
   -var frontend_image_tag=bootstrap \
   -var backend_image_tag=bootstrap
 
-../../tools/tf-ecs.sh dev apply \
+../../tools/tf.sh --env dev apply \
   -var frontend_image_tag=bootstrap \
   -var backend_image_tag=bootstrap
 ```
@@ -278,7 +278,7 @@ For a controlled local teardown:
 ```sh
 cd infra/ecs-fargate
 
-../../tools/tf-ecs.sh dev destroy \
+../../tools/tf.sh --env dev destroy \
   -var frontend_image_tag=bootstrap \
   -var backend_image_tag=bootstrap
 ```
