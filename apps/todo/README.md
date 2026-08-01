@@ -194,11 +194,6 @@ The migration runner resolves the RDS secret with `resolveDatabaseUrl()`, inject
 
 ### Recommended deploy order
 
-1. Build and push the backend image.
-2. Apply Terraform with `backend_migration_image_tag=<new>` and `backend_image_tag=<current>`.
-3. Run `./scripts/run-ecs-migration.sh`.
-4. Verify exit code `0`.
-5. Apply Terraform with `backend_migration_image_tag=<new>` and `backend_image_tag=<new>`.
-6. Wait for backend service stability.
+Use the deploy workflow to build images, run the migration task, and update services in order.
 
-This two-step tag model prevents the backend service from switching to the new image before the migration succeeds.
+This keeps the backend service on the current task definition until the migration succeeds.
