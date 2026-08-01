@@ -118,3 +118,23 @@ variable "sns_email" {
   type      = string
   sensitive = true
 }
+
+variable "ec2_instance_type" {
+  type    = string
+  default = "t3.medium"
+}
+
+variable "autoscaling_min_size" {
+  type    = number
+  default = 1
+
+}
+variable "autoscaling_desired_capacity" {
+  type    = number
+  default = 1
+}
+
+variable "autoscaling_max_size" {
+  type    = number
+  default = 2
+}
