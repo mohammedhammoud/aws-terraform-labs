@@ -18,7 +18,8 @@ infra/
   ecs-fargate/
     README.md
     terraform/
-scripts/
+tools/
+  tf.sh
   tf-ecs.sh
 ```
 
@@ -66,9 +67,9 @@ ECS helper:
 
 ```sh
 cd infra/ecs-fargate
-../../scripts/tf-ecs.sh dev fmt
-../../scripts/tf-ecs.sh dev validate
-../../scripts/tf-ecs.sh dev plan -var frontend_image_tag=bootstrap -var backend_image_tag=bootstrap
+../../tools/tf-ecs.sh dev fmt
+../../tools/tf-ecs.sh dev validate
+../../tools/tf-ecs.sh dev plan -var frontend_image_tag=bootstrap -var backend_image_tag=bootstrap
 ```
 
 Bootstrap runs directly from `infra/bootstrap/terraform` with `terraform`.
