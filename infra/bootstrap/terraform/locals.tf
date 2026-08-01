@@ -12,6 +12,10 @@ locals {
       name_prefix = "ecs-fargate"
       state_stack = "ecs-fargate"
     }
+    ecs-ec2 = {
+      name_prefix = "ecs-ec2"
+      state_stack = "ecs-ec2"
+    }
   }
 
   workload_ci_instances = {

@@ -9,7 +9,7 @@ variable "environment" {
 
 variable "project_name" {
   type    = string
-  default = "ecs-fargate"
+  default = "ecs-ec2"
 }
 
 variable "region" {

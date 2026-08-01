@@ -11,7 +11,7 @@ resource "aws_ecs_task_definition" "backend" {
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
   task_role_arn            = aws_iam_role.backend_task.arn
   network_mode             = "awsvpc"
-  requires_compatibilities = ["FARGATE"]
+  requires_compatibilities = ["EC2"]
   cpu                      = var.backend_cpu
   memory                   = var.backend_memory
   container_definitions = jsonencode([
@@ -61,7 +61,7 @@ resource "aws_ecs_task_definition" "backend_migration" {
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
   task_role_arn            = aws_iam_role.backend_task.arn
   network_mode             = "awsvpc"
-  requires_compatibilities = ["FARGATE"]
+  requires_compatibilities = ["EC2"]
   cpu                      = var.backend_cpu
   memory                   = var.backend_memory
   container_definitions = jsonencode([
@@ -107,7 +107,7 @@ resource "aws_ecs_task_definition" "frontend" {
   family                   = "${local.name_prefix}-frontend"
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
   network_mode             = "awsvpc"
-  requires_compatibilities = ["FARGATE"]
+  requires_compatibilities = ["EC2"]
   cpu                      = var.frontend_cpu
   memory                   = var.frontend_memory
   container_definitions = jsonencode([
@@ -145,7 +145,7 @@ resource "aws_ecs_service" "backend" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.backend.arn
   desired_count   = var.backend_desired_count
-  launch_type     = "FARGATE"
+  launch_type     = "EC2"
 
   deployment_circuit_breaker {
     enable   = true
@@ -188,7 +188,7 @@ resource "aws_ecs_service" "frontend" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.frontend.arn
   desired_count   = var.frontend_desired_count
-  launch_type     = "FARGATE"
+  launch_type     = "EC2"
 
   deployment_circuit_breaker {
     enable   = true
