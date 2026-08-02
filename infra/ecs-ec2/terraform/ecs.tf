@@ -236,7 +236,7 @@ resource "aws_ecs_service" "frontend" {
 }
 
 resource "aws_ecs_capacity_provider" "ec2" {
-  name = "${local.name_prefix}-capacity-provider"
+  name = "${local.name_prefix}-cp"
 
   auto_scaling_group_provider {
     auto_scaling_group_arn = aws_autoscaling_group.ecs.arn
