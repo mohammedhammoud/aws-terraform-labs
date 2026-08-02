@@ -53,7 +53,7 @@ variable "frontend_cpu" {
 
 variable "frontend_memory" {
   type    = number
-  default = 512
+  default = 256
 }
 
 variable "frontend_port" {
@@ -72,7 +72,7 @@ variable "backend_cpu" {
 
 variable "backend_memory" {
   type    = number
-  default = 1024
+  default = 512
 }
 
 variable "backend_port" {
