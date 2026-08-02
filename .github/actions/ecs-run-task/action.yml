@@ -10,6 +10,10 @@ inputs:
     description: ECS task definition ARN or family:revision
     required: true
 
+  launch-type:
+    description: ECS launch type
+    required: true
+
   subnet-ids:
     description: Comma-separated subnet IDs
     required: true
@@ -27,6 +31,7 @@ runs:
       env:
         INPUT_CLUSTER: ${{ inputs.cluster }}
         INPUT_TASK_DEFINITION: ${{ inputs.task-definition }}
+        INPUT_LAUNCH_TYPE: ${{ inputs.launch-type }}
         INPUT_SUBNET_IDS: ${{ inputs.subnet-ids }}
         INPUT_SECURITY_GROUP_IDS: ${{ inputs.security-group-ids }}
       run: |
@@ -38,7 +43,7 @@ runs:
 
         aws ecs run-task \
           --cluster "$INPUT_CLUSTER" \
-          --launch-type FARGATE \
+          --launch-type "$INPUT_LAUNCH_TYPE" \
           --task-definition "$INPUT_TASK_DEFINITION" \
           --network-configuration "awsvpcConfiguration={subnets=[$INPUT_SUBNET_IDS],securityGroups=[$INPUT_SECURITY_GROUP_IDS],assignPublicIp=DISABLED}" \
           > "$run_task_output"

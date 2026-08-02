@@ -211,6 +211,7 @@ jobs:
         with:
           cluster: ${{ steps.deployment-values.outputs.ecs-cluster }}
           task-definition: ${{ steps.register-migration.outputs.task-definition-arn }}
+          launch-type: FARGATE
           subnet-ids: ${{ steps.deployment-values.outputs.private-subnet-ids }}
           security-group-ids: ${{ steps.deployment-values.outputs.backend-security-group-id }}
 
