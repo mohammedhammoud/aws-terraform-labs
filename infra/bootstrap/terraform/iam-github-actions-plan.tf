@@ -87,11 +87,13 @@ data "aws_iam_policy_document" "github_actions_plan" {
       "ecr:BatchGetImage",
       "ecr:GetDownloadUrlForLayer",
       "elasticloadbalancing:Describe*",
+      "autoscaling:Describe*",
       "iam:GetOpenIDConnectProvider",
       "iam:GetRole",
       "iam:GetRolePolicy",
       "iam:GetPolicy",
       "iam:GetPolicyVersion",
+      "iam:GetInstanceProfile",
       "iam:ListAttachedRolePolicies",
       "iam:ListInstanceProfilesForRole",
       "iam:ListOpenIDConnectProviders",
@@ -104,6 +106,7 @@ data "aws_iam_policy_document" "github_actions_plan" {
       "rds:ListTagsForResource",
       "secretsmanager:DescribeSecret",
       "secretsmanager:ListSecrets",
+      "ssm:GetParameter",
     ]
 
     resources = ["*"]

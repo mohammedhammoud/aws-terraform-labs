@@ -7,36 +7,44 @@ locals {
 
   ci_environments = toset(["dev", "stage", "prod"])
 
-  workload_ci_stacks = {
-    ecs-fargate = {
-      name_prefix = "ecs-fargate"
-      state_stack = "ecs-fargate"
-    }
-    ecs-ec2 = {
-      name_prefix = "ecs-ec2"
-      state_stack = "ecs-ec2"
+  ecs_fargate_ci_instances = {
+    for environment in local.ci_environments : "ecs-fargate-${environment}" => {
+      stack_name                  = "ecs-fargate"
+      environment                 = environment
+      name_prefix                 = "ecs-fargate-${environment}"
+      state_key_prefix            = "${local.state_key_namespace}/ecs-fargate/${environment}/"
+      apply_role_name             = "github-actions-ecs-fargate-${environment}-terraform"
+      apply_role_arn              = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/github-actions-ecs-fargate-${environment}-terraform"
+      apply_policy_name           = "github-actions-ecs-fargate-${environment}-terraform"
+      apply_policy_arn            = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/github-actions-ecs-fargate-${environment}-terraform"
+      deploy_policy_arn           = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/ecs-fargate-${environment}-github-actions-deploy"
+      workload_role_arn_pattern   = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/ecs-fargate-${environment}-*"
+      workload_policy_arn_pattern = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/ecs-fargate-${environment}-*"
+      github_subject              = "repo:${var.github_repository}:environment:${environment}"
     }
   }
 
-  workload_ci_instances = {
-    for instance in flatten([
-      for stack_name, stack in local.workload_ci_stacks : [
-        for environment in local.ci_environments : {
-          key                         = "${stack_name}-${environment}"
-          stack_name                  = stack_name
-          environment                 = environment
-          name_prefix                 = "${stack.name_prefix}-${environment}"
-          state_key_prefix            = "${local.state_key_namespace}/${stack.state_stack}/${environment}/"
-          apply_role_name             = "github-actions-${stack.name_prefix}-${environment}-terraform"
-          apply_role_arn              = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/github-actions-${stack.name_prefix}-${environment}-terraform"
-          apply_policy_name           = "github-actions-${stack.name_prefix}-${environment}-terraform"
-          apply_policy_arn            = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/github-actions-${stack.name_prefix}-${environment}-terraform"
-          deploy_policy_arn           = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/${stack.name_prefix}-${environment}-github-actions-deploy"
-          workload_role_arn_pattern   = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${stack.name_prefix}-${environment}-*"
-          workload_policy_arn_pattern = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/${stack.name_prefix}-${environment}-*"
-          github_subject              = "repo:${var.github_repository}:environment:${environment}"
-        }
-      ]
-    ]) : instance.key => instance
+  ecs_ec2_ci_instances = {
+    for environment in local.ci_environments : "ecs-ec2-${environment}" => {
+      stack_name                  = "ecs-ec2"
+      environment                 = environment
+      name_prefix                 = "ecs-ec2-${environment}"
+      state_key_prefix            = "${local.state_key_namespace}/ecs-ec2/${environment}/"
+      apply_role_name             = "github-actions-ecs-ec2-${environment}-terraform"
+      apply_role_arn              = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/github-actions-ecs-ec2-${environment}-terraform"
+      apply_policy_name           = "github-actions-ecs-ec2-${environment}-terraform"
+      apply_policy_arn            = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/github-actions-ecs-ec2-${environment}-terraform"
+      deploy_policy_arn           = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/ecs-ec2-${environment}-github-actions-deploy"
+      workload_role_arn_pattern   = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/ecs-ec2-${environment}-*"
+      workload_policy_arn_pattern = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/ecs-ec2-${environment}-*"
+      ec2_instance_role_arn       = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/ecs-ec2-${environment}-ec2"
+      instance_profile_arn        = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:instance-profile/ecs-ec2-${environment}-ec2-profile"
+      github_subject              = "repo:${var.github_repository}:environment:${environment}"
+    }
   }
+
+  workload_ci_instances = merge(
+    local.ecs_fargate_ci_instances,
+    local.ecs_ec2_ci_instances,
+  )
 }

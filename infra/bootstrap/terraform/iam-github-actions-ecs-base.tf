@@ -1,4 +1,4 @@
-data "aws_iam_policy_document" "workload_github_actions_apply_assume_role" {
+data "aws_iam_policy_document" "ecs_github_actions_apply_assume_role" {
   for_each = local.workload_ci_instances
 
   statement {
@@ -23,14 +23,7 @@ data "aws_iam_policy_document" "workload_github_actions_apply_assume_role" {
   }
 }
 
-resource "aws_iam_role" "workload_github_actions_apply" {
-  for_each = local.workload_ci_instances
-
-  name               = each.value.apply_role_name
-  assume_role_policy = data.aws_iam_policy_document.workload_github_actions_apply_assume_role[each.key].json
-}
-
-data "aws_iam_policy_document" "workload_github_actions_apply" {
+data "aws_iam_policy_document" "ecs_base" {
   for_each = local.workload_ci_instances
 
   statement {
@@ -195,7 +188,6 @@ data "aws_iam_policy_document" "workload_github_actions_apply" {
       "iam:GetRole",
       "iam:GetRolePolicy",
       "iam:ListAttachedRolePolicies",
-      "iam:ListInstanceProfilesForRole",
       "iam:ListRolePolicies",
       "iam:PutRolePolicy",
       "iam:TagRole",
@@ -275,7 +267,7 @@ data "aws_iam_policy_document" "workload_github_actions_apply" {
   }
 
   statement {
-    sid = "CreateServiceLinkedRoles"
+    sid = "CreateCommonServiceLinkedRoles"
 
     actions   = ["iam:CreateServiceLinkedRole"]
     resources = ["*"]
@@ -285,7 +277,6 @@ data "aws_iam_policy_document" "workload_github_actions_apply" {
       variable = "iam:AWSServiceName"
       values = [
         "ecs.amazonaws.com",
-        "ecs.application-autoscaling.amazonaws.com",
         "elasticloadbalancing.amazonaws.com",
         "rds.amazonaws.com",
       ]
@@ -299,20 +290,7 @@ data "aws_iam_policy_document" "workload_github_actions_apply" {
       "iam:DeleteServiceLinkedRole",
       "iam:GetServiceLinkedRoleDeletionStatus",
     ]
+
     resources = ["*"]
   }
-}
-
-resource "aws_iam_policy" "workload_github_actions_apply" {
-  for_each = local.workload_ci_instances
-
-  name   = each.value.apply_policy_name
-  policy = data.aws_iam_policy_document.workload_github_actions_apply[each.key].json
-}
-
-resource "aws_iam_role_policy_attachment" "workload_github_actions_apply" {
-  for_each = local.workload_ci_instances
-
-  role       = aws_iam_role.workload_github_actions_apply[each.key].name
-  policy_arn = aws_iam_policy.workload_github_actions_apply[each.key].arn
 }
