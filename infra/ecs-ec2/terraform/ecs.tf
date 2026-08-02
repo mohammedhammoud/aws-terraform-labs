@@ -63,7 +63,7 @@ resource "aws_ecs_task_definition" "backend_migration" {
   network_mode             = "awsvpc"
   requires_compatibilities = ["EC2"]
   cpu                      = var.backend_cpu
-  memory                   = var.backend_memory
+  memory                   = var.backend_migration_memory
   container_definitions = jsonencode([
     {
       name      = "${local.name_prefix}-backend-migration-container"

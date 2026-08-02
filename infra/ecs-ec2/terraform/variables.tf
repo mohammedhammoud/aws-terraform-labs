@@ -72,7 +72,12 @@ variable "backend_cpu" {
 
 variable "backend_memory" {
   type    = number
-  default = 512
+  default = 256
+}
+
+variable "backend_migration_memory" {
+  type    = number
+  default = 256
 }
 
 variable "backend_port" {
@@ -121,7 +126,7 @@ variable "sns_email" {
 
 variable "ec2_instance_type" {
   type    = string
-  default = "t3.micro"
+  default = "t3.small"
 }
 
 variable "autoscaling_min_size" {
