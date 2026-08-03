@@ -278,6 +278,7 @@ jobs:
             echo "frontend-bucket=$(output_string frontend_s3_bucket_name)"
             echo "frontend-distribution-id=$(output_string frontend_cloudfront_distribution_id)"
             echo "frontend-deploy-role-arn=$(output_string frontend_deploy_role_arn)"
+            echo "backend-cloudfront-domain-name=$(output_string backend_cloudfront_domain_name)"
           } >> "$GITHUB_OUTPUT"
 
       - name: Set up Node.js
@@ -294,7 +295,7 @@ jobs:
       - name: Build frontend
         working-directory: apps/todo
         env:
-          VITE_API_URL: ${{ format('http://{0}', steps.deployment-values.outputs.alb-dns-name) }}
+          VITE_API_URL: ${{ format('https://{0}', steps.deployment-values.outputs.backend-cloudfront-domain-name) }}/api
         run: |
           set -euo pipefail
 
@@ -304,7 +305,7 @@ jobs:
       - name: Write frontend runtime config
         working-directory: apps/todo
         env:
-          VITE_API_URL: ${{ format('http://{0}', steps.deployment-values.outputs.alb-dns-name) }}
+          VITE_API_URL: ${{ format('https://{0}', steps.deployment-values.outputs.backend-cloudfront-domain-name) }}/api
         run: |
           set -euo pipefail
 
@@ -313,7 +314,7 @@ jobs:
       - name: Validate frontend config
         working-directory: apps/todo
         env:
-          VITE_API_URL: ${{ format('http://{0}', steps.deployment-values.outputs.alb-dns-name) }}
+          VITE_API_URL: ${{ format('https://{0}', steps.deployment-values.outputs.backend-cloudfront-domain-name) }}/api
         run: |
           set -euo pipefail
 
