@@ -17,7 +17,10 @@ locals {
       }
     ]
   })
-  cloudwatch_target_groups = {
+  ecs_services = {
+    backend = aws_ecs_service.backend
+  }
+  alb_target_groups = {
     backend = aws_lb_target_group.backend
   }
 }

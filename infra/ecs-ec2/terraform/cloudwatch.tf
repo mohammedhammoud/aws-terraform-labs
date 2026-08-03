@@ -8,7 +8,7 @@ resource "aws_cloudwatch_log_group" "ecs" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "ecs_high_memory" {
-  for_each = local.cloudwatch_target_groups
+  for_each = local.ecs_services
 
   alarm_name        = "${local.name_prefix}-${each.key}-high-memory"
   alarm_description = "ECS ${each.key} memory utilization is above 80%."
@@ -36,7 +36,7 @@ resource "aws_cloudwatch_metric_alarm" "ecs_high_memory" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "ecs_high_cpu" {
-  for_each = local.cloudwatch_target_groups
+  for_each = local.ecs_services
 
   alarm_name        = "${local.name_prefix}-${each.key}-high-cpu"
   alarm_description = "ECS ${each.key} cpu utilization is above 80%."
@@ -64,7 +64,7 @@ resource "aws_cloudwatch_metric_alarm" "ecs_high_cpu" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "alb_target_5xx" {
-  for_each = local.cloudwatch_target_groups
+  for_each = local.alb_target_groups
 
   alarm_name        = "${local.name_prefix}-${each.key}-target-5xx"
   alarm_description = "ALB target group ${each.key} returned 5XX responses."
@@ -92,7 +92,7 @@ resource "aws_cloudwatch_metric_alarm" "alb_target_5xx" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "alb_unhealthy_targets" {
-  for_each = local.cloudwatch_target_groups
+  for_each = local.alb_target_groups
 
   alarm_name        = "${local.name_prefix}-${each.key}-unhealthy-targets"
   alarm_description = "ALB target group ${each.key} has unhealthy targets."
