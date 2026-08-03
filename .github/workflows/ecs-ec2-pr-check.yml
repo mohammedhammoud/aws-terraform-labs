@@ -58,7 +58,6 @@ jobs:
           trap cleanup EXIT
 
           BACKEND_IMAGE_TAG="bootstrap"
-          FRONTEND_IMAGE_TAG="bootstrap"
 
           if aws s3 cp \
             "s3://${TERRAFORM_STATE_BUCKET}/aws-terraform-labs/${PROJECT_NAME}/${{ matrix.environment }}/terraform.tfstate" \
@@ -89,19 +88,13 @@ jobs:
             }
 
             STATE_BACKEND_IMAGE_TAG="$(get_image_tag "aws_ecs_task_definition" "backend" || true)"
-            STATE_FRONTEND_IMAGE_TAG="$(get_image_tag "aws_ecs_task_definition" "frontend" || true)"
 
             if [[ -n "$STATE_BACKEND_IMAGE_TAG" ]]; then
               BACKEND_IMAGE_TAG="$STATE_BACKEND_IMAGE_TAG"
             fi
-
-            if [[ -n "$STATE_FRONTEND_IMAGE_TAG" ]]; then
-              FRONTEND_IMAGE_TAG="$STATE_FRONTEND_IMAGE_TAG"
-            fi
           fi
 
           echo "backend-image-tag=$BACKEND_IMAGE_TAG" >> "$GITHUB_OUTPUT"
-          echo "frontend-image-tag=$FRONTEND_IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
       - name: Terraform plan
         id: terraform-plan

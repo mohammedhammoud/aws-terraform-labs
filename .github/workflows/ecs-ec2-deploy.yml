@@ -151,13 +151,10 @@ jobs:
           {
             echo "ecs-cluster=$(output_string ecs_cluster_name)"
             echo "backend-service=$(output_string backend_ecs_service_name)"
-            echo "frontend-service=$(output_string frontend_ecs_service_name)"
             echo "backend-ecr-repository=$(output_string backend_ecr_repository_url)"
-            echo "frontend-ecr-repository=$(output_string frontend_ecr_repository_url)"
             echo "backend-security-group-id=$(output_string backend_security_group_id)"
             echo "private-subnet-ids=$(output_csv private_subnet_ids)"
             echo "backend-task-definition-arn=$(output_string backend_task_definition_arn)"
-            echo "frontend-task-definition-arn=$(output_string frontend_task_definition_arn)"
             echo "migration-task-definition-arn=$(output_string backend_migration_task_definition_arn)"
           } >> "$GITHUB_OUTPUT"
 
@@ -166,14 +163,6 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4.2.0
-
-      - name: Build frontend
-        uses: ./.github/actions/docker-build-push
-        with:
-          context: apps/todo
-          dockerfile: apps/todo/frontend/Dockerfile
-          repository: ${{ steps.deployment-values.outputs.frontend-ecr-repository }}
-          image-tag: ${{ github.sha }}
 
       - name: Build backend
         uses: ./.github/actions/docker-build-push
@@ -189,13 +178,6 @@ jobs:
         with:
           task-definition: ${{ steps.deployment-values.outputs.backend-task-definition-arn }}
           image: ${{ steps.deployment-values.outputs.backend-ecr-repository }}:${{ github.sha }}
-
-      - name: Register frontend task definition
-        id: register-frontend
-        uses: ./.github/actions/ecs-register-task-definition
-        with:
-          task-definition: ${{ steps.deployment-values.outputs.frontend-task-definition-arn }}
-          image: ${{ steps.deployment-values.outputs.frontend-ecr-repository }}:${{ github.sha }}
 
       - name: Register migration task definition
         id: register-migration
@@ -221,24 +203,14 @@ jobs:
           task-definition: ${{ steps.register-backend.outputs.task-definition-arn }}
           desired-count: "1"
 
-      - name: Deploy frontend
-        uses: ./.github/actions/ecs-update-service
-        with:
-          cluster: ${{ steps.deployment-values.outputs.ecs-cluster }}
-          service: ${{ steps.deployment-values.outputs.frontend-service }}
-          task-definition: ${{ steps.register-frontend.outputs.task-definition-arn }}
-          desired-count: "1"
-
       - name: Wait for services
         env:
           ECS_CLUSTER: ${{ steps.deployment-values.outputs.ecs-cluster }}
           BACKEND_SERVICE: ${{ steps.deployment-values.outputs.backend-service }}
-          FRONTEND_SERVICE: ${{ steps.deployment-values.outputs.frontend-service }}
         shell: bash
         run: |
           set -euo pipefail
           aws ecs wait services-stable \
             --cluster "$ECS_CLUSTER" \
             --services \
-              "$BACKEND_SERVICE" \
-              "$FRONTEND_SERVICE"
+              "$BACKEND_SERVICE"
