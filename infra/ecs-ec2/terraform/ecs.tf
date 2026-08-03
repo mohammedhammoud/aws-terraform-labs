@@ -109,6 +109,9 @@ resource "aws_ecs_service" "backend" {
   task_definition = aws_ecs_task_definition.backend.arn
   desired_count   = var.backend_desired_count
 
+  deployment_minimum_healthy_percent = 50
+  deployment_maximum_percent         = 150
+
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.ec2.name
     weight            = 1
