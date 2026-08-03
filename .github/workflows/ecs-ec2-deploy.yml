@@ -67,9 +67,7 @@ jobs:
             {
               "environment": "${{ env.TERRAFORM_ENVIRONMENT }}",
               "backend_image_tag": "bootstrap",
-              "frontend_image_tag": "bootstrap",
               "backend_desired_count": 0,
-              "frontend_desired_count": 0,
               "sns_email": "${{ secrets.SNS_EMAIL }}"
             }
 
