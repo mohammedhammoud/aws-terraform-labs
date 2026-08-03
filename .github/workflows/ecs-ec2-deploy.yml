@@ -71,9 +71,9 @@ jobs:
               "sns_email": "${{ secrets.SNS_EMAIL }}"
             }
 
-  application:
+  backend:
     if: ${{ !inputs.skip_application }}
-    name: Application
+    name: Backend
     needs: infrastructure
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
@@ -150,16 +150,12 @@ jobs:
 
           {
             echo "ecs-cluster=$(output_string ecs_cluster_name)"
-            echo "alb-dns-name=$(output_string alb_dns_name)"
             echo "backend-service=$(output_string backend_ecs_service_name)"
             echo "backend-ecr-repository=$(output_string backend_ecr_repository_url)"
             echo "backend-security-group-id=$(output_string backend_security_group_id)"
             echo "private-subnet-ids=$(output_csv private_subnet_ids)"
             echo "backend-task-definition-arn=$(output_string backend_task_definition_arn)"
             echo "migration-task-definition-arn=$(output_string backend_migration_task_definition_arn)"
-            echo "frontend-bucket=$(output_string frontend_s3_bucket_name)"
-            echo "frontend-distribution-id=$(output_string frontend_cloudfront_distribution_id)"
-            echo "frontend-deploy-role-arn=$(output_string frontend_deploy_role_arn)"
           } >> "$GITHUB_OUTPUT"
 
       - name: Log in to Amazon ECR
@@ -218,6 +214,71 @@ jobs:
             --cluster "$ECS_CLUSTER" \
             --services \
               "$BACKEND_SERVICE"
+
+  frontend:
+    if: ${{ !inputs.skip_application }}
+    name: Frontend
+    needs: infrastructure
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      AWS_REGION: eu-north-1
+      TERRAFORM_VERSION: "1.12.2"
+      TERRAFORM_DIRECTORY: infra/ecs-ec2/terraform
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: ${{ vars.AWS_ECS_EC2_TERRAFORM_APPLY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: ecs-ec2-deploy
+
+      - name: Verify assumed identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws sts get-caller-identity
+
+      - name: Read Terraform outputs
+        id: terraform-outputs
+        uses: ./.github/actions/terraform-outputs
+        with:
+          terraform-directory: ${{ env.TERRAFORM_DIRECTORY }}
+          terraform-version: ${{ env.TERRAFORM_VERSION }}
+          terraform-state-key: ${{ format('aws-terraform-labs/{0}/{1}/terraform.tfstate', env.PROJECT_NAME, env.TERRAFORM_ENVIRONMENT) }}
+
+      - name: Resolve deployment values
+        id: deployment-values
+        env:
+          TERRAFORM_OUTPUTS_JSON: ${{ steps.terraform-outputs.outputs.json }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          output_string() {
+            local name="$1"
+            local value
+
+            value="$(jq -r --arg name "$name" '.[$name] // empty' <<< "$TERRAFORM_OUTPUTS_JSON")"
+
+            if [[ -z "$value" || "$value" == "null" ]]; then
+              echo "Missing required Terraform output: $name" >&2
+              exit 1
+            fi
+
+            echo "$value"
+          }
+
+          {
+            echo "alb-dns-name=$(output_string alb_dns_name)"
+            echo "frontend-bucket=$(output_string frontend_s3_bucket_name)"
+            echo "frontend-distribution-id=$(output_string frontend_cloudfront_distribution_id)"
+            echo "frontend-deploy-role-arn=$(output_string frontend_deploy_role_arn)"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
