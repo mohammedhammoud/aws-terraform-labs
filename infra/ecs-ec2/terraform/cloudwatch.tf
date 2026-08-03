@@ -1,5 +1,5 @@
 resource "aws_cloudwatch_log_group" "ecs" {
-  for_each          = toset(["backend", "frontend"])
+  for_each          = toset(["backend"])
   name              = "/ecs/${local.name_prefix}/${each.value}"
   retention_in_days = 14
   tags = {
@@ -220,14 +220,6 @@ resource "aws_cloudwatch_dashboard" "main" {
               aws_ecs_cluster.main.name,
               "ServiceName",
               aws_ecs_service.backend.name
-            ],
-            [
-              "AWS/ECS",
-              "CPUUtilization",
-              "ClusterName",
-              aws_ecs_cluster.main.name,
-              "ServiceName",
-              aws_ecs_service.frontend.name
             ]
           ]
         }
@@ -253,14 +245,6 @@ resource "aws_cloudwatch_dashboard" "main" {
               aws_ecs_cluster.main.name,
               "ServiceName",
               aws_ecs_service.backend.name
-            ],
-            [
-              "AWS/ECS",
-              "MemoryUtilization",
-              "ClusterName",
-              aws_ecs_cluster.main.name,
-              "ServiceName",
-              aws_ecs_service.frontend.name
             ]
           ]
         }
@@ -286,14 +270,6 @@ resource "aws_cloudwatch_dashboard" "main" {
               aws_lb.main.arn_suffix,
               "TargetGroup",
               aws_lb_target_group.backend.arn_suffix
-            ],
-            [
-              "AWS/ApplicationELB",
-              "HTTPCode_Target_5XX_Count",
-              "LoadBalancer",
-              aws_lb.main.arn_suffix,
-              "TargetGroup",
-              aws_lb_target_group.frontend.arn_suffix
             ]
           ]
         }
@@ -319,14 +295,6 @@ resource "aws_cloudwatch_dashboard" "main" {
               aws_lb.main.arn_suffix,
               "TargetGroup",
               aws_lb_target_group.backend.arn_suffix
-            ],
-            [
-              "AWS/ApplicationELB",
-              "UnHealthyHostCount",
-              "LoadBalancer",
-              aws_lb.main.arn_suffix,
-              "TargetGroup",
-              aws_lb_target_group.frontend.arn_suffix
             ]
           ]
         }
@@ -352,14 +320,6 @@ resource "aws_cloudwatch_dashboard" "main" {
               aws_lb.main.arn_suffix,
               "TargetGroup",
               aws_lb_target_group.backend.arn_suffix
-            ],
-            [
-              "AWS/ApplicationELB",
-              "TargetResponseTime",
-              "LoadBalancer",
-              aws_lb.main.arn_suffix,
-              "TargetGroup",
-              aws_lb_target_group.frontend.arn_suffix
             ]
           ]
         }

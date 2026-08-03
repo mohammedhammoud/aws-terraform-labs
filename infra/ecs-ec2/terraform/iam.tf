@@ -98,7 +98,6 @@ data "aws_iam_policy_document" "github_actions_deploy" {
     ]
 
     resources = [
-      aws_ecr_repository.frontend.arn,
       aws_ecr_repository.backend.arn,
     ]
   }

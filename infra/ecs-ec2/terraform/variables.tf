@@ -46,25 +46,6 @@ variable "availability_zones" {
   }
 }
 
-variable "frontend_cpu" {
-  type    = number
-  default = 256
-}
-
-variable "frontend_memory" {
-  type    = number
-  default = 256
-}
-
-variable "frontend_port" {
-  type    = number
-  default = 80
-}
-
-variable "frontend_image_tag" {
-  type = string
-}
-
 variable "backend_cpu" {
   type    = number
   default = 512
@@ -92,11 +73,6 @@ variable "backend_image_tag" {
 variable "backend_migration_image_tag" {
   type    = string
   default = null
-}
-
-variable "frontend_desired_count" {
-  type    = number
-  default = 1
 }
 
 variable "backend_desired_count" {

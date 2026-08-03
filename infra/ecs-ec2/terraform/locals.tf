@@ -18,7 +18,6 @@ locals {
     ]
   })
   cloudwatch_target_groups = {
-    backend  = aws_lb_target_group.backend
-    frontend = aws_lb_target_group.frontend
+    backend = aws_lb_target_group.backend
   }
 }
