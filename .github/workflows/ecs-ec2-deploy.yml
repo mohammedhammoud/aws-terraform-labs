@@ -201,7 +201,6 @@ jobs:
           cluster: ${{ steps.deployment-values.outputs.ecs-cluster }}
           service: ${{ steps.deployment-values.outputs.backend-service }}
           task-definition: ${{ steps.register-backend.outputs.task-definition-arn }}
-          desired-count: "2"
 
       - name: Wait for services
         env:
