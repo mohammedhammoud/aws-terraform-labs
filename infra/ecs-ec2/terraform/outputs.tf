@@ -29,3 +29,15 @@ output "backend_security_group_id" {
 output "backend_ecs_service_name" {
   value = aws_ecs_service.backend.name
 }
+
+output "frontend_s3_bucket_name" {
+  value = aws_s3_bucket.frontend.bucket
+}
+
+output "frontend_cloudfront_distribution_id" {
+  value = aws_cloudfront_distribution.frontend.id
+}
+
+output "frontend_cloudfront_domain_name" {
+  value = aws_cloudfront_distribution.frontend.domain_name
+}
