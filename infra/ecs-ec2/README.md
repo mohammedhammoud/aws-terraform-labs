@@ -304,7 +304,7 @@ Maximum instances: 2
 
 The ECS capacity provider uses the Auto Scaling Group, but managed scaling is intentionally disabled.
 
-This keeps EC2 capacity fixed so that ECS task placement, ENI availability, deployment percentages, and instance capacity can be studied directly.
+This keeps the EC2 capacity fixed, making it easier to see how ECS places tasks and what happens when there is not enough space.
 
 The EC2 instances register with the ECS cluster through launch-template user data:
 
