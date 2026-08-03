@@ -41,3 +41,7 @@ output "frontend_cloudfront_distribution_id" {
 output "frontend_cloudfront_domain_name" {
   value = aws_cloudfront_distribution.frontend.domain_name
 }
+
+output "frontend_deploy_role_arn" {
+  value = aws_iam_role.frontend_deploy.arn
+}

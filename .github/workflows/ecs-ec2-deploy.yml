@@ -150,12 +150,16 @@ jobs:
 
           {
             echo "ecs-cluster=$(output_string ecs_cluster_name)"
+            echo "alb-dns-name=$(output_string alb_dns_name)"
             echo "backend-service=$(output_string backend_ecs_service_name)"
             echo "backend-ecr-repository=$(output_string backend_ecr_repository_url)"
             echo "backend-security-group-id=$(output_string backend_security_group_id)"
             echo "private-subnet-ids=$(output_csv private_subnet_ids)"
             echo "backend-task-definition-arn=$(output_string backend_task_definition_arn)"
             echo "migration-task-definition-arn=$(output_string backend_migration_task_definition_arn)"
+            echo "frontend-bucket=$(output_string frontend_s3_bucket_name)"
+            echo "frontend-distribution-id=$(output_string frontend_cloudfront_distribution_id)"
+            echo "frontend-deploy-role-arn=$(output_string frontend_deploy_role_arn)"
           } >> "$GITHUB_OUTPUT"
 
       - name: Log in to Amazon ECR
@@ -214,3 +218,70 @@ jobs:
             --cluster "$ECS_CLUSTER" \
             --services \
               "$BACKEND_SERVICE"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/todo/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: apps/todo
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: apps/todo
+        env:
+          VITE_API_URL: ${{ format('http://{0}', steps.deployment-values.outputs.alb-dns-name) }}
+        run: |
+          set -euo pipefail
+
+          npm run build --workspace @todo/shared
+          npm run build --workspace @todo/frontend
+
+      - name: Write frontend runtime config
+        working-directory: apps/todo
+        env:
+          VITE_API_URL: ${{ format('http://{0}', steps.deployment-values.outputs.alb-dns-name) }}
+        run: |
+          set -euo pipefail
+
+          jq -n --arg apiUrl "$VITE_API_URL" '{ API_URL: $apiUrl }' > frontend/dist/config.json
+
+      - name: Validate frontend config
+        working-directory: apps/todo
+        env:
+          VITE_API_URL: ${{ format('http://{0}', steps.deployment-values.outputs.alb-dns-name) }}
+        run: |
+          set -euo pipefail
+
+          jq -e --arg apiUrl "$VITE_API_URL" '.API_URL == $apiUrl' frontend/dist/config.json > /dev/null
+
+      - name: Configure frontend deployment credentials
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: ${{ steps.deployment-values.outputs.frontend-deploy-role-arn }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: frontend-deploy
+
+      - name: Deploy frontend to S3
+        env:
+          FRONTEND_BUCKET: ${{ steps.deployment-values.outputs.frontend-bucket }}
+        run: |
+          set -euo pipefail
+
+          aws s3 sync \
+            apps/todo/frontend/dist \
+            "s3://${FRONTEND_BUCKET}" \
+            --delete
+
+      - name: Invalidate CloudFront cache
+        env:
+          DISTRIBUTION_ID: ${{ steps.deployment-values.outputs.frontend-distribution-id }}
+        run: |
+          set -euo pipefail
+
+          aws cloudfront create-invalidation \
+            --distribution-id "$DISTRIBUTION_ID" \
+            --paths "/*"

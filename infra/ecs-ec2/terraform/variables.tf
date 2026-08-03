@@ -119,3 +119,8 @@ variable "autoscaling_max_size" {
   type    = number
   default = 2
 }
+
+variable "github_repository" {
+  type    = string
+  default = "mohammedhammoud@5408383/aws-terraform-labs@1293580188"
+}
