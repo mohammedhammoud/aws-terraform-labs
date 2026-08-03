@@ -135,8 +135,9 @@ resource "aws_ecs_service" "backend" {
   }
 
   lifecycle {
-    # Deployment workflow owns the task definition after bootstrap.
+    # Deployment workflow owns these after bootstrap.
     ignore_changes = [
+      desired_count,
       task_definition,
     ]
   }
