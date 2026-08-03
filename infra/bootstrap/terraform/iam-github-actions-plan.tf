@@ -84,7 +84,9 @@ data "aws_iam_policy_document" "github_actions_plan" {
       "cloudfront:GetDistributionConfig",
       "cloudfront:GetOriginAccessControl",
       "cloudfront:GetOriginAccessControlConfig",
+      "cloudfront:GetOriginRequestPolicy",
       "cloudfront:ListOriginAccessControls",
+      "cloudfront:ListOriginRequestPolicies",
       "cloudfront:ListTagsForResource",
     ]
 

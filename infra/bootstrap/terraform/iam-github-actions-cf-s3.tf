@@ -55,21 +55,23 @@ data "aws_iam_policy_document" "ecs_ec2_cf_s3" {
 
     actions = [
       "cloudfront:CreateDistribution",
+      "cloudfront:CreateOriginAccessControl",
       "cloudfront:DeleteDistribution",
+      "cloudfront:DeleteOriginAccessControl",
+      "cloudfront:GetCachePolicy",
       "cloudfront:GetDistribution",
       "cloudfront:GetDistributionConfig",
+      "cloudfront:GetOriginAccessControl",
+      "cloudfront:GetOriginAccessControlConfig",
+      "cloudfront:GetOriginRequestPolicy",
+      "cloudfront:ListCachePolicies",
+      "cloudfront:ListOriginAccessControls",
+      "cloudfront:ListOriginRequestPolicies",
       "cloudfront:ListTagsForResource",
       "cloudfront:TagResource",
       "cloudfront:UntagResource",
       "cloudfront:UpdateDistribution",
-      "cloudfront:CreateOriginAccessControl",
-      "cloudfront:DeleteOriginAccessControl",
-      "cloudfront:GetOriginAccessControl",
-      "cloudfront:GetOriginAccessControlConfig",
-      "cloudfront:ListOriginAccessControls",
       "cloudfront:UpdateOriginAccessControl",
-      "cloudfront:GetCachePolicy",
-      "cloudfront:ListCachePolicies",
     ]
 
     resources = ["*"]
