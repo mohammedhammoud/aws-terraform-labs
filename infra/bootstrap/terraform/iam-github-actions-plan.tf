@@ -47,6 +47,39 @@ data "aws_iam_policy_document" "github_actions_plan" {
   }
 
   statement {
+    sid = "FrontendBucketsReadOnly"
+
+    actions = [
+      "s3:GetBucketLocation",
+      "s3:GetBucketPolicy",
+      "s3:GetBucketPublicAccessBlock",
+      "s3:GetBucketTagging",
+      "s3:ListBucket",
+    ]
+
+    resources = [
+      for instance in values(local.ecs_ec2_ci_instances) :
+      "arn:aws:s3:::${data.aws_caller_identity.current.account_id}-${instance.name_prefix}-frontend"
+    ]
+  }
+
+  statement {
+    sid = "CloudFrontReadOnly"
+
+    actions = [
+      "cloudfront:GetCachePolicy",
+      "cloudfront:GetDistribution",
+      "cloudfront:GetDistributionConfig",
+      "cloudfront:GetOriginAccessControl",
+      "cloudfront:GetOriginAccessControlConfig",
+      "cloudfront:ListOriginAccessControls",
+      "cloudfront:ListTagsForResource",
+    ]
+
+    resources = ["*"]
+  }
+
+  statement {
     sid = "TerraformStateObjectsReadOnly"
 
     actions = [
