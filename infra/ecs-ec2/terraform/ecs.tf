@@ -44,7 +44,7 @@ resource "aws_ecs_task_definition" "backend" {
           value = var.db_name
         },
         {
-          name = "CORS_ORIGIN"
+          name  = "CORS_ORIGIN"
           value = "https://${aws_cloudfront_distribution.frontend.domain_name}"
         }
       ]
