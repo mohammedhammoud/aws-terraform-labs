@@ -42,6 +42,7 @@ data "aws_iam_policy_document" "ecs_ec2_cf_s3" {
 
     actions = [
       "s3:DeleteObject",
+      "s3:DeleteObjectVersion",
       "s3:GetObject",
     ]
 
