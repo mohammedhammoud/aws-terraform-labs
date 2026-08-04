@@ -2,9 +2,9 @@
 
 Terraform stack for running the todo application on AWS ECS Fargate.
 
-The stack contains a frontend service, backend service, private PostgreSQL database, load balancer, deployment roles, logging, monitoring, alarm notifications, and automatic rollback for failed ECS deployments.
+This stack creates a frontend service, a backend service, a private PostgreSQL database, an ALB, logging, alarms, and the IAM pieces needed for deployment.
 
-GitHub Actions is the normal way to plan, deploy, and destroy the environment. Local Terraform commands are mainly used for debugging.
+GitHub Actions is the main way to plan, deploy, and destroy the environment. Local Terraform commands are mostly for debugging.
 
 ## Architecture
 
@@ -32,7 +32,7 @@ The ALB runs in public subnets.
 
 The frontend and backend ECS services run in private subnets and use NAT gateways for outbound traffic.
 
-The frontend is intentionally deployed as a separate ECS service in this lab to practice running multiple services behind one ALB. For a simple static SPA, S3 and CloudFront would normally be a better fit.
+The frontend runs as a separate ECS service in this lab so I could practice running multiple services behind one ALB. For a simple static SPA, S3 and CloudFront would normally be a better fit.
 
 RDS runs in separate private database subnets and is only reachable from the backend security group.
 
@@ -83,11 +83,15 @@ GitHub Actions uses AWS OIDC instead of long-lived AWS access keys.
 
 Pull requests use a read-only Terraform plan role.
 
-Deployments use an environment-specific apply role for:
+Bootstrap creates environment-specific apply roles for:
 
 - `dev`
 - `stage`
 - `prod`
+
+The current deploy workflow input and PR-check matrix only enable:
+
+- `dev`
 
 The main workflows are:
 
@@ -95,9 +99,9 @@ The main workflows are:
 - Deploy: `.github/workflows/ecs-fargate-deploy.yml`
 - Destroy: `.github/workflows/ecs-fargate-destroy.yml`
 
-The deployment process builds the application images, pushes them to ECR, runs database migrations, and updates the ECS services.
+The deploy workflow builds the application images, pushes them to ECR, runs database migrations, and updates the ECS services.
 
-Terraform creates the initial ECS task definitions. Later application deployments manage new task definition revisions.
+Terraform creates the initial ECS task definitions. Later application deploys register new task definition revisions.
 
 The deployment workflow waits for both ECS services to reach a stable state:
 
@@ -123,9 +127,9 @@ If the new task repeatedly fails to start or does not pass its health check:
 4. ECS stops deploying the broken revision.
 5. The previous stable task definition remains active or is restored.
 
-This allows the old release to continue serving traffic while the new release is being validated.
+This lets the old release keep serving traffic while ECS checks the new one.
 
-The rollback behavior was tested by temporarily changing the backend `/health` endpoint to return HTTP `500`. The ALB marked the new target unhealthy, ECS retried the task, the deployment failed, and the previous healthy release continued serving traffic.
+This was tested and captured in `docs/rollback.png`: ECS marked the deployment as failed after ELB health check failures and rolled the service back to the previous stable revision.
 
 ![ECS deployment rollback](docs/rollback.png)
 
@@ -177,7 +181,7 @@ The CloudWatch dashboard includes:
 - RDS free storage
 - Current alarm status
 
-CloudWatch alarms send notifications through an SNS email subscription.
+CloudWatch alarms send notifications through an SNS email subscription after the subscription email has been confirmed.
 
 The unhealthy-target metric can also show failed deployment attempts while ECS starts and validates new tasks.
 
@@ -187,14 +191,16 @@ ECS deployment details and rollback progress are available through the service d
 
 ## Security
 
-The stack includes several basic security controls:
+Current security-related pieces:
 
 - GitHub Actions authenticates through OIDC
+- The Terraform apply role trust policy is scoped to the configured GitHub repository and environment
 - No permanent AWS credentials are stored in GitHub
 - RDS is not publicly accessible
 - Database credentials are managed by AWS Secrets Manager
 - The backend task role can read the database secret
 - The frontend task has no database access
+- The runtime task roles are narrower than the Terraform apply role, which still keeps broader service permissions for provisioning
 - The state bucket blocks public access
 - State bucket versioning and encryption are enabled
 - HTTP access to the state bucket is denied
@@ -222,7 +228,7 @@ cd infra/ecs-fargate
   -var backend_image_tag=bootstrap
 ```
 
-The SNS email is normally provided through GitHub Actions as a Terraform variable.
+The SNS email is usually passed from GitHub Actions as a Terraform variable.
 
 ## Verify
 

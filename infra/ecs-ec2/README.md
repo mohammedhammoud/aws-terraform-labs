@@ -2,9 +2,9 @@
 
 Terraform stack for running the todo application on Amazon ECS using EC2 capacity.
 
-The stack contains a static frontend hosted in S3, separate CloudFront distributions for the frontend and backend, an Application Load Balancer, an ECS backend service, EC2 container instances, a private PostgreSQL database, deployment roles, logging, monitoring, alarm notifications, and automatic rollback for failed ECS deployments.
+This stack creates a static frontend in S3, separate CloudFront distributions for frontend and backend traffic, an ALB, an ECS backend service on EC2, a private PostgreSQL database, logging, alarms, and the IAM pieces needed for deployment.
 
-GitHub Actions is the normal way to plan, deploy, and destroy the environment. Local Terraform commands are mainly used for debugging.
+GitHub Actions is the main way to plan, deploy, and destroy the environment. Local Terraform commands are mostly for debugging.
 
 ## Architecture
 
@@ -116,11 +116,15 @@ GitHub Actions uses AWS OIDC instead of long-lived AWS access keys.
 
 Pull requests use a read-only Terraform plan role.
 
-Deployments use an environment-specific apply role for:
+Bootstrap creates environment-specific apply roles for:
 
 - `dev`
 - `stage`
 - `prod`
+
+The current deploy workflow input and PR-check matrix only enable:
+
+- `dev`
 
 The main workflows are:
 
@@ -136,9 +140,9 @@ The deploy workflow contains separate jobs for:
 
 The infrastructure job initially creates the ECS service with a desired count of zero.
 
-This prevents ECS from trying to start backend tasks before the first application image has been pushed to ECR.
+This avoids ECS trying to start backend tasks before the first application image has been pushed to ECR.
 
-The backend deployment then:
+After the infrastructure job, the backend job:
 
 1. Builds the backend Docker image.
 2. Pushes the image to ECR using the Git commit SHA as an immutable tag.
@@ -149,7 +153,7 @@ The backend deployment then:
 7. Scales the service to two tasks.
 8. Waits for the ECS service to reach a stable state.
 
-The frontend deployment then:
+A separate frontend job:
 
 1. Reads the backend CloudFront domain from Terraform outputs.
 2. Builds the shared and frontend packages.
@@ -159,7 +163,7 @@ The frontend deployment then:
 6. Synchronizes the frontend build to S3.
 7. Invalidates the frontend CloudFront distribution.
 
-Terraform creates the initial ECS task definitions. Later application deployments manage new task definition revisions and the active desired task count.
+Terraform creates the initial ECS task definitions. Later application deploys manage new task definition revisions and the active desired task count.
 
 The deployment workflow waits for the backend ECS service to reach a stable state:
 
@@ -192,7 +196,7 @@ Minimum healthy percentage: 50%
 Maximum percentage: 150%
 ```
 
-Rollback behavior was not tested separately in this lab because the same ECS circuit-breaker behavior was already verified in the ECS Fargate lab.
+The Terraform code enables circuit-breaker rollback for this service, but this repo does not include a separate documented rollback test for the ECS EC2 path.
 
 ## Terraform state
 
@@ -246,7 +250,7 @@ The CloudWatch dashboard includes:
 - RDS free storage
 - Current alarm status
 
-CloudWatch alarms send notifications through an SNS email subscription.
+CloudWatch alarms send notifications through an SNS email subscription after the subscription email has been confirmed.
 
 The unhealthy-target metric can also show failed deployment attempts while ECS starts and validates new tasks.
 
@@ -254,9 +258,10 @@ ECS deployment details and rollback progress are available through the service d
 
 ## Security
 
-The stack includes several basic security controls:
+Current security-related pieces:
 
 - GitHub Actions authenticates through OIDC
+- The Terraform apply role trust policy is scoped to the configured GitHub repository and environment
 - No permanent AWS credentials are stored in GitHub
 - The frontend S3 bucket blocks public access
 - CloudFront uses Origin Access Control to access frontend objects
@@ -270,7 +275,8 @@ The stack includes several basic security controls:
 - EC2 Instance Metadata Service requires IMDSv2
 - ECR image scanning is enabled
 - ECR uses immutable image tags
-- The frontend deployment role is restricted to the frontend S3 bucket and CloudFront distribution
+- The frontend deployment role is restricted to the frontend S3 bucket and frontend CloudFront distribution
+- The runtime roles are narrower than the Terraform apply role, which still keeps broader service permissions for provisioning
 - `iam:PassRole` is restricted to the ECS execution and backend task roles
 - `iam:PassRole` can only be used with `ecs-tasks.amazonaws.com`
 
@@ -304,7 +310,7 @@ Maximum instances: 2
 
 The ECS capacity provider uses the Auto Scaling Group, but managed scaling is intentionally disabled.
 
-This keeps the EC2 capacity fixed, making it easier to see how ECS places tasks and what happens when there is not enough space.
+This keeps the EC2 capacity fixed, which makes it easier to see how ECS places tasks and what happens when there is not enough space.
 
 The EC2 instances register with the ECS cluster through launch-template user data:
 
@@ -329,7 +335,7 @@ cd infra/ecs-ec2
   -var backend_image_tag=bootstrap
 ```
 
-The SNS email is normally provided through GitHub Actions as a Terraform variable.
+The SNS email is usually passed from GitHub Actions as a Terraform variable.
 
 The infrastructure workflow also sets:
 
@@ -399,22 +405,16 @@ A successful deployment should end with:
 - No active CloudWatch alarms
 - The latest task definition revision running
 
-The lab verified a complete delete request through CloudFront:
+The screenshots in `docs/frontend.png` and `docs/backend.png` show the frontend through the frontend CloudFront distribution and a backend `/api/todos` response through the backend CloudFront distribution.
+
+This documents these paths:
 
 ```text
-HTTP/2 204
-x-cache: Miss from cloudfront
+Client → Frontend CloudFront → Private S3 bucket
+Client → Backend CloudFront → Application Load Balancer → ECS backend task
 ```
 
-This confirmed the complete request path:
-
-```text
-Client
-→ Backend CloudFront
-→ Application Load Balancer
-→ ECS backend task
-→ PostgreSQL RDS
-```
+This repo does not currently include a separate documented test result for a full write or delete request flowing through CloudFront to RDS.
 
 Direct access to the frontend S3 bucket should be blocked.
 

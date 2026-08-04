@@ -1,9 +1,9 @@
 # AWS Terraform Labs
 
-AWS and Terraform learning repo with:
+Collection of AWS and Terraform labs.
 
 - `labs/` for smaller focused exercises
-- `infra/` for larger AWS-backed stacks
+- `infra/` for larger end-to-end AWS stacks
 
 ## Repo structure
 
@@ -18,13 +18,16 @@ infra/
   ecs-fargate/
     README.md
     terraform/
+  ecs-ec2/
+    README.md
+    terraform/
 tools/
   tf.sh
 ```
 
 ## Labs
 
-Use `labs/` for smaller experiments and concept practice.
+Use `labs/` for smaller experiments and practice.
 
 Typical lab flow:
 
@@ -38,7 +41,7 @@ Many labs were designed for local Floci.
 
 ## Infrastructure
 
-Use `infra/` for the current shared AWS setup.
+Use `infra/` for the larger AWS setups in the repo.
 
 Current Terraform roots:
 
@@ -46,23 +49,33 @@ Current Terraform roots:
   - state bucket protections
   - GitHub OIDC provider
   - global PR plan role `github-actions-terraform-plan`
-  - workload-specific apply identities
+  - environment-specific apply roles for the infra stacks
 - `infra/ecs-fargate/terraform`
   - ECS Fargate workload resources
-  - workload-specific deploy policy and attachment
+  - workload-specific deploy policy attachment for the apply role
+- `infra/ecs-ec2/terraform`
+  - ECS on EC2 workload resources
+  - frontend S3 and CloudFront resources
+  - workload-specific deploy policy attachment for the apply role
 
-Supported environments:
+Terraform variables and bootstrap IAM are set up for:
 
 - `dev`
 - `stage`
 - `prod`
 
+The current GitHub Actions workflow inputs and PR matrices only enable:
+
+- `dev`
+
 GitHub Actions variables:
 
+- repository variable: `TERRAFORM_STATE_BUCKET`
 - repository variable: `AWS_TERRAFORM_PLAN_ROLE_ARN`
 - environment variable: `AWS_ECS_FARGATE_TERRAFORM_APPLY_ROLE_ARN`
+- environment variable: `AWS_ECS_EC2_TERRAFORM_APPLY_ROLE_ARN`
 
-ECS helper:
+Terraform helper:
 
 ```sh
 cd infra/ecs-fargate
@@ -77,3 +90,4 @@ Bootstrap runs directly from `infra/bootstrap/terraform` with `terraform`.
 
 - [Bootstrap](infra/bootstrap/terraform/README.md)
 - [ECS Fargate](infra/ecs-fargate/README.md)
+- [ECS EC2](infra/ecs-ec2/README.md)
