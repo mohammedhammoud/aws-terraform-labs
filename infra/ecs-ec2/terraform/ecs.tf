@@ -150,7 +150,8 @@ resource "aws_ecs_service" "backend" {
     aws_ecs_cluster_capacity_providers.main,
     aws_lb_listener.http,
     aws_iam_role_policy_attachment.ecs_task_execution,
-    aws_iam_role_policy.backend_read_db_secret
+    aws_iam_role_policy.backend_read_db_secret,
+    aws_iam_role_policy_attachment.github_actions_deploy,
   ]
 
   tags = {

@@ -188,6 +188,7 @@ data "aws_iam_policy_document" "ecs_base" {
       "iam:GetRole",
       "iam:GetRolePolicy",
       "iam:ListAttachedRolePolicies",
+      "iam:ListInstanceProfilesForRole",
       "iam:ListRolePolicies",
       "iam:PutRolePolicy",
       "iam:TagRole",
