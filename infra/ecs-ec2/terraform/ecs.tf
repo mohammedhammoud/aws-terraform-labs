@@ -163,7 +163,9 @@ resource "aws_ecs_capacity_provider" "ec2" {
   name = "cp-${local.name_prefix}"
 
   auto_scaling_group_provider {
-    auto_scaling_group_arn = aws_autoscaling_group.ecs.arn
+    auto_scaling_group_arn         = aws_autoscaling_group.ecs.arn
+    managed_draining               = "DISABLED"
+    managed_termination_protection = "DISABLED"
 
     managed_scaling {
       status = "DISABLED"
