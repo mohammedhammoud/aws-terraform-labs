@@ -163,7 +163,7 @@ resource "aws_ecs_capacity_provider" "ec2" {
   name = "cp-${local.name_prefix}"
 
   auto_scaling_group_provider {
-    auto_scaling_group_arn         = aws_autoscaling_group.ecs.arn
+    auto_scaling_group_arn = aws_autoscaling_group.ecs.arn
     # Fixed EC2 capacity is used in this lab, so managed draining is disabled
     # to avoid lifecycle-hook delays during full environment teardown.
     managed_draining = "DISABLED"
