@@ -13,6 +13,17 @@ The lab creates:
 - one private EC2 instance
 - Security Groups for HTTP and SSH
 
+## Inputs
+
+Set these in `terraform.tfvars`:
+
+```hcl
+my_ip      = "203.0.113.10/32"
+public_key = "your-ssh-public-key"
+```
+
+In CI, use `TF_VAR_my_ip` and `TF_VAR_public_key`.
+
 ## Routing
 
 Each route table automatically contains:
@@ -78,7 +89,7 @@ The request failed.
 The public EC2 was accessed over SSH:
 
 ```bash
-ssh -i ~/.ssh/id_rsa ec2-user@<public-ip>
+ssh -i ~/.ssh/<private-key> ec2-user@<public-ip>
 ```
 
 From there:

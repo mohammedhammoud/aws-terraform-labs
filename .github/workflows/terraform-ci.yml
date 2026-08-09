@@ -35,6 +35,8 @@ jobs:
       AWS_SECRET_ACCESS_KEY: test
       AWS_DEFAULT_REGION: us-east-1
       AWS_EC2_METADATA_DISABLED: true
+      TF_VAR_my_ip: 0.0.0.0/0
+      TF_VAR_public_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestOnlyPlaceholder ci@example
     defaults:
       run:
         working-directory: ${{ matrix.terraform_dir }}

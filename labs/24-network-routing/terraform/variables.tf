@@ -14,6 +14,9 @@ variable "vpc_cidr" {
 }
 
 variable "my_ip" {
-  type    = string
-  default = "83.254.0.190/32"
+  type = string
+}
+
+variable "public_key" {
+  type = string
 }
