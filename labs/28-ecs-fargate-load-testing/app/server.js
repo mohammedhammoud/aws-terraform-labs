@@ -9,7 +9,7 @@ const server = http.createServer((req, res) => {
     if (req.url === "/work") {
         let result = 0;
 
-        for (let i = 0; i < 10_000_000; i++) {
+        for (let i = 0; i < 20_000_000; i++) {
             result += Math.sqrt(i);
         }
 
