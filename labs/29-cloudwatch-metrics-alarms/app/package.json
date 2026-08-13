@@ -1,0 +1,15 @@
+{
+  "name": "29-cloudwatch-metrics-alarms",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsup"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cloudwatch": "^3.0.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
+  }
+}
