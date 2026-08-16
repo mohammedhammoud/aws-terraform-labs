@@ -65,3 +65,19 @@ resource "aws_route_table_association" "private" {
   subnet_id      = aws_subnet.private[count.index].id
   route_table_id = aws_route_table.private[count.index].id
 }
+
+resource "aws_subnet" "db" {
+  vpc_id            = aws_vpc.main.id
+  count             = local.az_count
+  cidr_block        = cidrsubnet(aws_vpc.main.cidr_block, 8, local.az_count * 2 + count.index)
+  availability_zone = var.availability_zones[count.index]
+}
+resource "aws_route_table" "db" {
+  vpc_id = aws_vpc.main.id
+}
+
+resource "aws_route_table_association" "db" {
+  count          = local.az_count
+  subnet_id      = aws_subnet.db[count.index].id
+  route_table_id = aws_route_table.db.id
+}
