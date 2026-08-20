@@ -57,7 +57,10 @@ resource "aws_ecs_task_definition" "backend_migration" {
       name      = "${local.name_prefix}-backend-migration"
       image     = "${aws_ecr_repository.backend.repository_url}:${var.backend_image_tag}"
       essential = true
-      command   = ["python", "manage.py", "migrate"]
+      command = [
+        "node",
+        "backend/dist/scripts/migrate.js"
+      ]
       environment = [
         {
           name  = "DB_SECRET_ARN"
