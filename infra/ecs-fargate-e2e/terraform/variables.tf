@@ -34,12 +34,17 @@ variable "backend_cpu" {
 
 variable "backend_memory" {
   type    = number
+  default = 1024
+}
+
+variable "backend_migration_cpu" {
+  type    = number
   default = 256
 }
 
 variable "backend_migration_memory" {
   type    = number
-  default = 256
+  default = 512
 }
 
 variable "backend_port" {
