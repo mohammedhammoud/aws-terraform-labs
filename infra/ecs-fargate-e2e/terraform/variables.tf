@@ -56,11 +56,6 @@ variable "backend_image_tag" {
   type = string
 }
 
-variable "backend_migration_image_tag" {
-  type    = string
-  default = null
-}
-
 variable "backend_desired_count" {
   type    = number
   default = 2

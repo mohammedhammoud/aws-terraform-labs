@@ -40,6 +40,14 @@ resource "aws_ecs_task_definition" "backend" {
           value = var.db_name
         }
       ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.ecs_backend.name
+          awslogs-region        = var.region
+          awslogs-stream-prefix = "backend"
+        }
+      }
     }
   ])
 }
@@ -79,6 +87,14 @@ resource "aws_ecs_task_definition" "backend_migration" {
           value = var.db_name
         }
       ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.ecs_backend.name
+          awslogs-region        = var.region
+          awslogs-stream-prefix = "backend-migration"
+        }
+      }
     }
   ])
 }
@@ -115,7 +131,7 @@ resource "aws_ecs_service" "backend" {
   }
 
   depends_on = [
-    aws_lb_target_group.backend,
+    aws_lb_listener.backend,
     aws_iam_role_policy_attachment.ecs_task_execution,
     aws_iam_role_policy_attachment.backend_task_read_db_secret
   ]
