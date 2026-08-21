@@ -15,3 +15,10 @@ output "ecs_ec2_github_actions_apply_role_arns" {
     local.ecs_ec2_ci_instances[key].environment => role.arn
   }
 }
+
+output "ecs_fargate_e2e_github_actions_apply_role_arns" {
+  value = {
+    for key, role in aws_iam_role.ecs_fargate_e2e_github_actions_apply :
+    local.ecs_fargate_e2e_ci_instances[key].environment => role.arn
+  }
+}

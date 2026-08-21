@@ -43,8 +43,26 @@ locals {
     }
   }
 
+  ecs_fargate_e2e_ci_instances = {
+    for environment in local.ci_environments : "ecs-fargate-e2e-${environment}" => {
+      stack_name                  = "ecs-fargate-e2e"
+      environment                 = environment
+      name_prefix                 = "ecs-fargate-e2e-${environment}"
+      state_key_prefix            = "${local.state_key_namespace}/ecs-fargate-e2e/${environment}/"
+      apply_role_name             = "github-actions-ecs-fargate-e2e-${environment}-terraform"
+      apply_role_arn              = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/github-actions-ecs-fargate-e2e-${environment}-terraform"
+      apply_policy_name           = "github-actions-ecs-fargate-e2e-${environment}-terraform"
+      apply_policy_arn            = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/github-actions-ecs-fargate-e2e-${environment}-terraform"
+      deploy_policy_arn           = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/ecs-fargate-e2e-${environment}-github-actions-deploy"
+      workload_role_arn_pattern   = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/ecs-fargate-e2e-${environment}-*"
+      workload_policy_arn_pattern = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/ecs-fargate-e2e-${environment}-*"
+      github_subject              = "repo:${var.github_repository}:environment:${environment}"
+    }
+  }
+
   workload_ci_instances = merge(
     local.ecs_fargate_ci_instances,
+    local.ecs_fargate_e2e_ci_instances,
     local.ecs_ec2_ci_instances,
   )
 }
