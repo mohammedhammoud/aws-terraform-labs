@@ -1,5 +1,8 @@
-data "aws_iam_policy_document" "ecs_ec2_cf_s3" {
-  for_each = local.ecs_ec2_ci_instances
+data "aws_iam_policy_document" "cloudfront_s3" {
+  for_each = merge(
+    local.ecs_ec2_ci_instances,
+    local.ecs_fargate_e2e_ci_instances,
+  )
 
   statement {
     sid = "ManageFrontendBucket"
@@ -79,16 +82,26 @@ data "aws_iam_policy_document" "ecs_ec2_cf_s3" {
   }
 }
 
-resource "aws_iam_policy" "ecs_ec2_cf_s3" {
-  for_each = local.ecs_ec2_ci_instances
+resource "aws_iam_policy" "cloudfront_s3" {
+  for_each = merge(
+    local.ecs_ec2_ci_instances,
+    local.ecs_fargate_e2e_ci_instances,
+  )
 
   name   = "${each.value.apply_role_name}-cf-s3"
-  policy = data.aws_iam_policy_document.ecs_ec2_cf_s3[each.key].json
+  policy = data.aws_iam_policy_document.cloudfront_s3[each.key].json
 }
 
-resource "aws_iam_role_policy_attachment" "ecs_ec2_cf_s3" {
+resource "aws_iam_role_policy_attachment" "ecs_ec2_cloudfront_s3" {
   for_each = local.ecs_ec2_ci_instances
 
   role       = aws_iam_role.ecs_ec2_github_actions_apply[each.key].name
-  policy_arn = aws_iam_policy.ecs_ec2_cf_s3[each.key].arn
+  policy_arn = aws_iam_policy.cloudfront_s3[each.key].arn
+}
+
+resource "aws_iam_role_policy_attachment" "ecs_fargate_e2e_cloudfront_s3" {
+  for_each = local.ecs_fargate_e2e_ci_instances
+
+  role       = aws_iam_role.ecs_fargate_e2e_github_actions_apply[each.key].name
+  policy_arn = aws_iam_policy.cloudfront_s3[each.key].arn
 }
