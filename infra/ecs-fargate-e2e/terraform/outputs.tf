@@ -18,6 +18,22 @@ output "backend_migration_task_definition_arn" {
   value = aws_ecs_task_definition.backend_migration.arn
 }
 
+output "frontend_s3_bucket_name" {
+  value = aws_s3_bucket.frontend.bucket
+}
+
+output "frontend_cloudfront_distribution_id" {
+  value = aws_cloudfront_distribution.frontend.id
+}
+
+output "frontend_cloudfront_domain_name" {
+  value = aws_cloudfront_distribution.frontend.domain_name
+}
+
+output "frontend_deploy_role_arn" {
+  value = aws_iam_role.frontend_deploy.arn
+}
+
 output "private_subnet_ids" {
   value = aws_subnet.private[*].id
 }
