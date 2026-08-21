@@ -34,6 +34,10 @@ output "frontend_deploy_role_arn" {
   value = aws_iam_role.frontend_deploy.arn
 }
 
+output "backend_cloudfront_domain_name" {
+  value = aws_cloudfront_distribution.backend.domain_name
+}
+
 output "private_subnet_ids" {
   value = aws_subnet.private[*].id
 }

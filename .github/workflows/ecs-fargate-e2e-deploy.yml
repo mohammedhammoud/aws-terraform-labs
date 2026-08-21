@@ -71,9 +71,9 @@ jobs:
               "sns_email": "${{ secrets.SNS_EMAIL }}"
             }
 
-  application:
+  backend:
     if: ${{ !inputs.skip_application }}
-    name: Application
+    name: Backend
     needs: infrastructure
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
@@ -213,4 +213,136 @@ jobs:
           aws ecs wait services-stable \
             --cluster "$ECS_CLUSTER" \
             --services \
-              "$BACKEND_SERVICE" \
+              "$BACKEND_SERVICE"
+
+  frontend:
+    if: ${{ !inputs.skip_application }}
+    name: Frontend
+    needs: infrastructure
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      AWS_REGION: eu-north-1
+      TERRAFORM_VERSION: "1.12.2"
+      TERRAFORM_DIRECTORY: infra/ecs-fargate-e2e/terraform
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: ${{ vars.AWS_ECS_FARGATE_E2E_TERRAFORM_APPLY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: ecs-fargate-e2e-deploy
+
+      - name: Verify assumed identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws sts get-caller-identity
+
+      - name: Read Terraform outputs
+        id: terraform-outputs
+        uses: ./.github/actions/terraform-outputs
+        with:
+          terraform-directory: ${{ env.TERRAFORM_DIRECTORY }}
+          terraform-version: ${{ env.TERRAFORM_VERSION }}
+          terraform-state-key: ${{ format('aws-terraform-labs/{0}/{1}/terraform.tfstate', env.PROJECT_NAME, env.TERRAFORM_ENVIRONMENT) }}
+
+      - name: Resolve deployment values
+        id: deployment-values
+        env:
+          TERRAFORM_OUTPUTS_JSON: ${{ steps.terraform-outputs.outputs.json }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          output_string() {
+            local name="$1"
+            local value
+
+            value="$(jq -r --arg name "$name" '.[$name] // empty' <<< "$TERRAFORM_OUTPUTS_JSON")"
+
+            if [[ -z "$value" || "$value" == "null" ]]; then
+              echo "Missing required Terraform output: $name" >&2
+              exit 1
+            fi
+
+            echo "$value"
+          }
+
+          {
+            echo "frontend-bucket=$(output_string frontend_s3_bucket_name)"
+            echo "frontend-distribution-id=$(output_string frontend_cloudfront_distribution_id)"
+            echo "frontend-deploy-role-arn=$(output_string frontend_deploy_role_arn)"
+            echo "backend-cloudfront-domain-name=$(output_string backend_cloudfront_domain_name)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/todo/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: apps/todo
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: apps/todo
+        env:
+          VITE_API_URL: ${{ format('https://{0}', steps.deployment-values.outputs.backend-cloudfront-domain-name) }}/api
+        run: |
+          set -euo pipefail
+
+          npm run build --workspace @todo/shared
+          npm run build --workspace @todo/frontend
+
+      - name: Write frontend runtime config
+        working-directory: apps/todo
+        env:
+          VITE_API_URL: ${{ format('https://{0}', steps.deployment-values.outputs.backend-cloudfront-domain-name) }}/api
+        run: |
+          set -euo pipefail
+
+          jq -n --arg apiUrl "$VITE_API_URL" '{ API_URL: $apiUrl }' > frontend/dist/config.json
+
+      - name: Validate frontend config
+        working-directory: apps/todo
+        env:
+          VITE_API_URL: ${{ format('https://{0}', steps.deployment-values.outputs.backend-cloudfront-domain-name) }}/api
+        run: |
+          set -euo pipefail
+
+          jq -e --arg apiUrl "$VITE_API_URL" '.API_URL == $apiUrl' frontend/dist/config.json > /dev/null
+
+      - name: Configure frontend deployment credentials
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: ${{ steps.deployment-values.outputs.frontend-deploy-role-arn }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: frontend-deploy
+
+      - name: Deploy frontend to S3
+        env:
+          FRONTEND_BUCKET: ${{ steps.deployment-values.outputs.frontend-bucket }}
+        run: |
+          set -euo pipefail
+
+          aws s3 sync \
+            apps/todo/frontend/dist \
+            "s3://${FRONTEND_BUCKET}" \
+            --delete
+
+      - name: Invalidate CloudFront cache
+        env:
+          DISTRIBUTION_ID: ${{ steps.deployment-values.outputs.frontend-distribution-id }}
+        run: |
+          set -euo pipefail
+
+          aws cloudfront create-invalidation \
+            --distribution-id "$DISTRIBUTION_ID" \
+            --paths "/*"
