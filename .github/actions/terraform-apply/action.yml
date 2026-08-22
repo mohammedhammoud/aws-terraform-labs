@@ -90,11 +90,13 @@ runs:
 
         terraform plan \
           -input=false \
+          -lock-timeout=5m \
           -no-color \
           -out="$PLAN_FILE" \
           "${var_args[@]}"
 
         terraform apply \
           -input=false \
+          -lock-timeout=5m \
           -no-color \
           "$PLAN_FILE"

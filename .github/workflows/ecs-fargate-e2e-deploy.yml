@@ -27,7 +27,7 @@ env:
   PROJECT_NAME: ecs-fargate-e2e
 
 concurrency:
-  group: ecs-fargate-e2e-${{ inputs.environment }}-deploy
+  group: ecs-fargate-e2e-${{ inputs.environment }}
   cancel-in-progress: false
 
 jobs:

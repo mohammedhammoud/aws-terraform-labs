@@ -31,7 +31,7 @@ env:
   TERRAFORM_STATE_BUCKET: ${{ vars.TERRAFORM_STATE_BUCKET }}
 
 concurrency:
-  group: ecs-fargate-e2e-${{ inputs.environment }}-destroy
+  group: ecs-fargate-e2e-${{ inputs.environment }}
   cancel-in-progress: false
 
 jobs:
